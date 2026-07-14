@@ -1,0 +1,11 @@
+[deps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Tilia = "86c3e6f3-4b72-4d3d-a746-6fd3a5ac49ca"
+
+[sources]
+Tilia = {path = "../.."}
+
+[compat]
+Makie = "0.24"
+julia = "1.10"

@@ -1,0 +1,63 @@
+# GitHub CI disabled for now
+
+
+# name: CI
+# on:
+#   push:
+#   pull_request:
+# jobs:
+#   test:
+#     strategy:
+#       matrix:
+#         os: [ubuntu-latest, macos-latest, windows-latest]
+#         julia: ['1.10', '1']
+#     runs-on: ${{ matrix.os }}
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@v2
+#         with:
+#           version: ${{ matrix.julia }}
+#       - uses: julia-actions/cache@v2
+#       - uses: julia-actions/julia-runtest@v1
+#   reactant:
+#     runs-on: ubuntu-latest
+#     env:
+#       JULIA_NUM_PRECOMPILE_TASKS: '1'
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@v2
+#         with:
+#           version: '1'
+#       - uses: julia-actions/cache@v2
+#       - name: Instantiate accelerator environment
+#         run: julia --project=test/accelerator -e 'using Pkg; Pkg.instantiate()'
+#       - name: Test Reactant extension
+#         run: julia --project=test/accelerator test/accelerator/runtests.jl
+#   differentiation:
+#     runs-on: ubuntu-latest
+#     env:
+#       JULIA_NUM_PRECOMPILE_TASKS: '1'
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@v2
+#         with:
+#           version: '1'
+#       - uses: julia-actions/cache@v2
+#       - name: Instantiate differentiation environment
+#         run: julia --project=test/differentiation -e 'using Pkg; Pkg.instantiate()'
+#       - name: Test DifferentiationInterface extension
+#         run: julia --project=test/differentiation test/differentiation/runtests.jl
+#   visualization:
+#     runs-on: ubuntu-latest
+#     env:
+#       JULIA_NUM_PRECOMPILE_TASKS: '1'
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: julia-actions/setup-julia@v2
+#         with:
+#           version: '1'
+#       - uses: julia-actions/cache@v2
+#       - name: Instantiate visualization environment
+#         run: julia --project=test/visualization -e 'using Pkg; Pkg.instantiate()'
+#       - name: Test Makie extension
+#         run: julia --project=test/visualization test/visualization/runtests.jl

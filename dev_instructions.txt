@@ -1,0 +1,17 @@
+
+prefer using jj over git for VCS. but git is compatible (the directory is colocated)
+
+keep in mind that my laptop's storage is limited
+
+
+if reactant installation is needed make sure that
+ENV["JULIA_NUM_PRECOMPILE_TASKS"] = 1
+also don't install reactant on temporary envs, it's inefficient
+
+please have the file ./LocalPreferences.toml
+
+in the same directory as the code running reactant
+
+the full test suite is large and takes some time to run. It's completely normal but should be triggered when really necessary.
+
+don't push to github on your own

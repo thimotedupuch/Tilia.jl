@@ -1,0 +1,12 @@
+[workspace]
+authors = ["Thimoté Dupuch <thimote.dupuch@proton.me>"]
+channels = ["conda-forge"]
+name = "sklearn_tests"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.14.6,<3.15"
+scikit-learn = ">=1.9.0,<2"

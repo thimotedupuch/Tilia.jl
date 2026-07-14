@@ -1,0 +1,13 @@
+[deps]
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Tilia = "86c3e6f3-4b72-4d3d-a746-6fd3a5ac49ca"
+
+[sources]
+Tilia = {path = "../.."}
+
+[compat]
+DifferentiationInterface = "0.7"
+ForwardDiff = "1"
+julia = "1.10"
