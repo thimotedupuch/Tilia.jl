@@ -58,7 +58,8 @@ model = Chain(
 
 fitted = fit(model, X, y)
 predict(fitted, X[1:5, :])
-report(fitted.fitted_nodes[1]).details.output_widths
+Tilia.graph_data(fitted)
+report(fitted).details.propagated_schemas
 ```
 
 ## Ask what numerical work a fit actually performed

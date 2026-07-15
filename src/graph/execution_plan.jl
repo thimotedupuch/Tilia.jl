@@ -88,7 +88,7 @@ function _lower_primitives(graph::SemanticGraph, nodes::Vector{NumericalExecutio
                            phase::Symbol, inference_operation::Symbol)
     primitives = NumericalExecutionNode[]
     edges = Tuple{Int,Int}[]
-    previous_group_last = 0
+    groups = Dict{Int,UnitRange{Int}}()
     for (semantic, region) in zip(graph.nodes, nodes)
         operations = semantic isa Union{TransformNode,PredictorNode} ?
             _primitive_operations(semantic.model, phase, inference_operation) : [region.operation]
@@ -101,8 +101,10 @@ function _lower_primitives(graph::SemanticGraph, nodes::Vector{NumericalExecutio
                 region.buffer_id, region.release_after, Int[], :owned_output))
             primitive_id > group_first && push!(edges, (primitive_id - 1, primitive_id))
         end
-        previous_group_last > 0 && push!(edges, (previous_group_last, group_first))
-        previous_group_last = length(primitives)
+        groups[semantic.id] = group_first:length(primitives)
+    end
+    for (from, to) in graph.edges
+        push!(edges, (last(groups[from]), first(groups[to])))
     end
     primitives, edges
 end

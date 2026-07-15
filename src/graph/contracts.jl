@@ -196,14 +196,15 @@ output_schema(model::Union{KMeans,GaussianMixture,IsolationForest}, schema::Sche
 function propagate_schema(graph::SemanticGraph, input::Schema;
                           observations::Integer=typemax(Int))
     validate_graph(graph)
-    current = input
-    outputs = Any[]
+    predecessors = graph_predecessors(graph)
+    outputs = Vector{Any}(undef, length(graph.nodes))
     for node in graph.nodes
+        current = _graph_input(outputs, predecessors[node.id], input)
         model = node.model
         current = model isa Union{PCA,TruncatedSVD} ?
             _decomposition_schema(model, current, observations) :
             output_schema(model, current)
-        push!(outputs, current)
+        outputs[node.id] = current
     end
     outputs
 end

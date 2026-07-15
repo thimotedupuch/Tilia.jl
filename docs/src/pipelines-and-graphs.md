@@ -2,6 +2,8 @@
 
 `Chain` fits every transformation only on training rows. `Select`, `ColumnMap`,
 `Parallel`, and `Concatenate` express column and branch structure explicitly.
+Their fitted semantic graph contains the individual branch operations rather
+than an opaque composite node.
 
 ```julia
 features = ColumnMap(:age => Standardize(),

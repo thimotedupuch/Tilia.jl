@@ -17,12 +17,18 @@
                         Concatenate(), RidgeRegression(lambda=0.1))
     graph_fit = fit(graph_model, X, y)
     @test size(predict(graph_fit, X)) == (4,)
-    @test report(graph_fit).details.nodes == 3
+    @test report(graph_fit).details.nodes == 4
+    @test graph_fit.graph.edges == [(1, 3), (2, 3), (3, 4)]
+    @test graph_fit.graph.nodes[1].model isa Standardize
+    @test graph_fit.graph.nodes[2].model isa PCA
+    @test graph_fit.graph.nodes[3].model isa Concatenate
+    @test graph_fit.graph.nodes[4].model isa RidgeRegression
+    @test Tilia.optimize(graph_fit) === graph_fit
     mktempdir(pwd()) do directory
         save_model(directory, graph_fit)
         loaded = load_model(directory)
         @test predict(loaded, X) ≈ predict(graph_fit, X)
-        @test length(loaded.fitted_nodes) == 3
+        @test length(loaded.fitted_nodes) == 4
     end
 
     table = column_table((age=[20.0, 22.0, 40.0, 42.0],
@@ -41,6 +47,8 @@
 
     classifier = fit(Chain(mapped, LogisticRegression(lambda=0.1)),
                      table, [:young, :young, :old, :old])
+    @test length(classifier.graph.nodes) == 6
+    @test classifier.graph.edges == [(1, 2), (3, 4), (2, 5), (4, 5), (5, 6)]
     @test predict(classifier, table) == [:young, :young, :old, :old]
     @test size(predict_proba(classifier, table)) == (4, 2)
     mktempdir(pwd()) do directory
@@ -65,8 +73,9 @@ end
     branched = Tilia.build_graph(Chain(
         Parallel(Standardize(), PCA(n_components=1)), Concatenate(), MeanRegressor()))
     branch_schemas = Tilia.propagate_schema(branched, matrix_schema; observations=8)
-    @test branch_schemas[1] isa Tuple
-    @test Tilia.nfeatures(branch_schemas[2]) == 4
+    @test Tilia.nfeatures(branch_schemas[1]) == 3
+    @test Tilia.nfeatures(branch_schemas[2]) == 1
+    @test Tilia.nfeatures(branch_schemas[3]) == 4
 
     table = column_table((value=[1.0, 2, 3], group=[:a, :b, :a]))
     mapped = ColumnMap(:value => Standardize(),

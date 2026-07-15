@@ -21,22 +21,27 @@ _shape(value) = ()
 function trace(fitted::FittedGraph, input; operation::Symbol=:predict)
     operation in (:predict, :predict_proba) || throw(ArgumentError(
         "trace operation must be :predict or :predict_proba."))
-    value = input isa AbstractMatrix || input isa ColumnTable ? input : column_table(input)
+    external_input = input isa AbstractMatrix || input isa ColumnTable ? input : column_table(input)
+    predecessors = graph_predecessors(fitted.graph)
+    values = Vector{Any}(undef, length(fitted.fitted_nodes))
     records = NodeTrace[]
     total_started = time_ns()
     for (index, node) in enumerate(fitted.fitted_nodes)
         semantic_node = fitted.graph.nodes[index]
+        value = _graph_input(values, predecessors[index], external_input)
         input_shape = _shape(value)
         started = time_ns()
         node_operation = semantic_node isa TransformNode ? :transform :
                          (operation === :predict_proba ? :predict_proba : :predict)
         value = node_operation === :transform ? transform(node, value) :
                 node_operation === :predict_proba ? predict_proba(node, value) : predict(node, value)
+        values[index] = value
         elapsed = UInt64(time_ns() - started)
         push!(records, NodeTrace(index, node_operation, elapsed, input_shape,
                                  _shape(value), Base.summarysize(value)))
     end
-    ExecutionTrace(value, records, UInt64(time_ns() - total_started))
+    ExecutionTrace(_graph_output(values, fitted.graph), records,
+                   UInt64(time_ns() - total_started))
 end
 
 """Return backend-neutral node and edge data suitable for graph visualization."""

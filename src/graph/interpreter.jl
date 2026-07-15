@@ -7,32 +7,33 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
     semantic_input_schema = y === nothing ? infer_schema(X) : with_target(infer_schema(X), y)
     propagated_schemas = propagate_schema(graph, semantic_input_schema;
                                           observations=size(X, 1))
-    value = X
-    fitted_nodes = AbstractFittedEstimator[]
+    predecessors = graph_predecessors(graph)
+    values = Vector{Any}(undef, length(graph.nodes))
+    fitted_nodes = Vector{AbstractFittedEstimator}(undef, length(graph.nodes))
     node_timings = NamedTuple[]
     fit_execution = lower_graph(graph, X; phase=:fit, device=:cpu)
     inference_execution = lower_graph(graph, X; phase=:inference, device=:cpu)
     for numerical_node in fit_execution.nodes
         node = graph.nodes[numerical_node.semantic_node_id]
-        input_value = value
-        _record_input!(numerical_node, value)
+        input_value = _graph_input(values, predecessors[node.id], X)
+        _record_input!(numerical_node, input_value)
         node_context = derive_context(context, :graph_node, node.id)
         started = time_ns()
         if numerical_node.operation === :fit_transform
-            fitted = fit(node.model, value; context=node_context)
-            push!(fitted_nodes, fitted)
-            value = transform(fitted, value)
-            _record_output!(numerical_node, value)
-            _record_primitive_region!(fit_execution, node.id, input_value, value)
+            fitted = fit(node.model, input_value; context=node_context)
+            fitted_nodes[node.id] = fitted
+            values[node.id] = transform(fitted, input_value)
+            _record_output!(numerical_node, values[node.id])
+            _record_primitive_region!(fit_execution, node.id, input_value, values[node.id])
         else
             if consumes_target(node)
                 y === nothing && throw(UnsupportedDataError(
                     "Predictor node $(node.id) requires a target."))
-                fitted = fit(node.model, value, y; weights=weights, context=node_context)
+                fitted = fit(node.model, input_value, y; weights=weights, context=node_context)
             else
-                fitted = fit(node.model, value; context=node_context)
+                fitted = fit(node.model, input_value; context=node_context)
             end
-            push!(fitted_nodes, fitted)
+            fitted_nodes[node.id] = fitted
             numerical_node.output_shape = ()
             _record_primitive_region!(fit_execution, node.id, input_value, fitted)
         end
@@ -42,7 +43,7 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
         inference_node.representation = numerical_node.representation
         inference_node.output_shape = node isa TransformNode ? numerical_node.output_shape : (size(X, 1),)
         _record_primitive_region!(inference_execution, node.id, input_value,
-                                  node isa TransformNode ? value : y)
+                                  node isa TransformNode ? values[node.id] : y)
         if node isa PredictorNode
             primitive_indices = findall(primitive -> primitive.semantic_node_id == node.id,
                                         inference_execution.primitives)
@@ -74,33 +75,48 @@ end
 function _execute_inference_graph(fitted::FittedGraph, X, operation::Symbol)
     execution = lower_graph(fitted.graph, X; phase=:inference,
                             operation=operation, device=:cpu)
-    value = X
+    predecessors = graph_predecessors(fitted.graph)
+    values = Vector{Any}(undef, length(fitted.graph.nodes))
     for numerical_node in execution.nodes
         node = fitted.fitted_nodes[numerical_node.semantic_node_id]
-        input_value = value
-        _record_input!(numerical_node, value)
-        value = numerical_node.operation === :transform ? transform(node, value) :
-                numerical_node.operation === :predict_proba ? predict_proba(node, value) :
-                predict(node, value)
+        input_value = _graph_input(values, predecessors[numerical_node.semantic_node_id], X)
+        _record_input!(numerical_node, input_value)
+        value = numerical_node.operation === :transform ? transform(node, input_value) :
+                numerical_node.operation === :predict_proba ? predict_proba(node, input_value) :
+                predict(node, input_value)
+        values[numerical_node.semantic_node_id] = value
         _record_output!(numerical_node, value)
         _record_primitive_region!(execution, numerical_node.semantic_node_id,
                                   input_value, value)
     end
-    (output=value, graph=execution)
+    (output=_graph_output(values, fitted.graph), graph=execution)
 end
 
 function _execute_fitted_graph(fitted::FittedGraph, X, operation::Symbol)
     operation in (:predict, :predict_proba) || throw(ArgumentError(
         "graph inference operation must be :predict or :predict_proba."))
-    value = X
+    if _is_linear_graph(fitted.graph)
+        value = X
+        @inbounds for index in eachindex(fitted.fitted_nodes)
+            semantic = fitted.graph.nodes[index]
+            node = fitted.fitted_nodes[index]
+            value = semantic isa TransformNode ? transform(node, value) :
+                    operation === :predict_proba ? predict_proba(node, value) :
+                    predict(node, value)
+        end
+        return value
+    end
+    predecessors = graph_predecessors(fitted.graph)
+    values = Vector{Any}(undef, length(fitted.fitted_nodes))
     @inbounds for index in eachindex(fitted.fitted_nodes)
         semantic = fitted.graph.nodes[index]
         node = fitted.fitted_nodes[index]
-        value = semantic isa TransformNode ? transform(node, value) :
-                operation === :predict_proba ? predict_proba(node, value) :
-                predict(node, value)
+        input_value = _graph_input(values, predecessors[index], X)
+        values[index] = semantic isa TransformNode ? transform(node, input_value) :
+                        operation === :predict_proba ? predict_proba(node, input_value) :
+                        predict(node, input_value)
     end
-    value
+    _graph_output(values, fitted.graph)
 end
 
 predict_graph(fitted::FittedGraph, X) =

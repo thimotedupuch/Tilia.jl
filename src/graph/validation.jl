@@ -22,6 +22,38 @@ function validate_graph(graph::SemanticGraph)
     graph
 end
 
+"""Predecessor node identifiers, in deterministic semantic order."""
+function graph_predecessors(graph::SemanticGraph)
+    predecessors = [Int[] for _ in graph.nodes]
+    for (from, to) in graph.edges
+        push!(predecessors[to], from)
+    end
+    foreach(sort!, predecessors)
+    predecessors
+end
+
+"""Sink node identifiers, in deterministic semantic order."""
+function graph_sinks(graph::SemanticGraph)
+    has_consumer = falses(length(graph.nodes))
+    for (from, _) in graph.edges
+        has_consumer[from] = true
+    end
+    findall(!, has_consumer)
+end
+
+_is_linear_graph(graph::SemanticGraph) =
+    graph.edges == [(id, id + 1) for id in 1:length(graph.nodes)-1]
+
+_graph_input(values, predecessors::Vector{Int}, input) =
+    isempty(predecessors) ? input :
+    length(predecessors) == 1 ? values[only(predecessors)] :
+    tuple((values[id] for id in predecessors)...)
+
+function _graph_output(values, graph::SemanticGraph)
+    sinks = graph_sinks(graph)
+    length(sinks) == 1 ? values[only(sinks)] : tuple((values[id] for id in sinks)...)
+end
+
 """Validate that every semantic node declares support for `backend`."""
 function validate_backend(graph::SemanticGraph, backend::Symbol)
     validate_graph(graph)

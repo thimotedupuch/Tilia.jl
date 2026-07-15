@@ -10,6 +10,12 @@ inference executes the fitted node plan directly without rebuilding lowering
 metadata on every call; explicit `trace` and internal lowering APIs construct
 detailed per-call inspection data when requested.
 
+Graph execution is dependency-driven. `Parallel` is lowered to sibling nodes
+and `ColumnMap` to explicit selection, transformation, and merge nodes. Roots
+consume the external input, joins consume ordered tuples of predecessor
+outputs, and reports therefore expose branch-level schemas, timings, buffers,
+and numerical primitives. Linear chains retain a dedicated inference hot path.
+
 Useful advanced namespaces are `Tilia.Kernels` and `Tilia.Solvers`. Internal
 graph inspection is available through `Tilia.graph_data`, `Tilia.trace`,
 `Tilia.execution_plan`, and `Tilia.device_placement`.

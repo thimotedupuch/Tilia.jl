@@ -18,6 +18,7 @@ end
 
 """Fuse adjacent fitted affine standardizations for inference."""
 function transform_fusion(fitted::FittedGraph)
+    _is_linear_graph(fitted.graph) || return fitted
     nodes = AbstractFittedEstimator[]
     fused_count = 0
     index = 1

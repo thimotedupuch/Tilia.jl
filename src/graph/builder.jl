@@ -43,13 +43,41 @@ function capabilities(chain::Chain)
     ))
 end
 
+function _append_node!(nodes, edges, step, predecessors)
+    id = length(nodes) + 1
+    task = capabilities(step).task
+    node = step isa AbstractTransformer || task in (:transformation, :neighbors) ?
+           TransformNode(id, step) : PredictorNode(id, step)
+    push!(nodes, node)
+    append!(edges, ((from, id) for from in predecessors))
+    [id]
+end
+
+function _append_step!(nodes, edges, step, predecessors)
+    if step isa Parallel
+        outputs = Int[]
+        for branch in step.steps
+            append!(outputs, _append_step!(nodes, edges, branch, predecessors))
+        end
+        return outputs
+    elseif step isa ColumnMap
+        outputs = Int[]
+        for mapping in step.mappings
+            selected = _append_node!(nodes, edges, Select(first(mapping)), predecessors)
+            append!(outputs, _append_step!(nodes, edges, last(mapping), selected))
+        end
+        return length(outputs) == 1 ? outputs :
+               _append_node!(nodes, edges, Concatenate(), outputs)
+    end
+    _append_node!(nodes, edges, step, predecessors)
+end
+
 function build_graph(chain::Chain)
     nodes = AbstractGraphNode[]
-    for (id, step) in enumerate(chain.steps)
-        task = capabilities(step).task
-        node = step isa AbstractTransformer || task in (:transformation, :neighbors) ?
-               TransformNode(id, step) : PredictorNode(id, step)
-        push!(nodes, node)
+    edges = Tuple{Int,Int}[]
+    predecessors = Int[]
+    for step in chain.steps
+        predecessors = _append_step!(nodes, edges, step, predecessors)
     end
-    SemanticGraph(nodes, [(i, i + 1) for i in 1:length(nodes)-1])
+    SemanticGraph(nodes, edges)
 end
