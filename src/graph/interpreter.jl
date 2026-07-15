@@ -89,8 +89,22 @@ function _execute_inference_graph(fitted::FittedGraph, X, operation::Symbol)
     (output=value, graph=execution)
 end
 
+function _execute_fitted_graph(fitted::FittedGraph, X, operation::Symbol)
+    operation in (:predict, :predict_proba) || throw(ArgumentError(
+        "graph inference operation must be :predict or :predict_proba."))
+    value = X
+    @inbounds for index in eachindex(fitted.fitted_nodes)
+        semantic = fitted.graph.nodes[index]
+        node = fitted.fitted_nodes[index]
+        value = semantic isa TransformNode ? transform(node, value) :
+                operation === :predict_proba ? predict_proba(node, value) :
+                predict(node, value)
+    end
+    value
+end
+
 predict_graph(fitted::FittedGraph, X) =
-    _execute_inference_graph(fitted, X, :predict).output
+    _execute_fitted_graph(fitted, X, :predict)
 
 predict_proba_graph(fitted::FittedGraph, X) =
-    _execute_inference_graph(fitted, X, :predict_proba).output
+    _execute_fitted_graph(fitted, X, :predict_proba)

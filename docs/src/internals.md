@@ -5,6 +5,11 @@ Numerical kernels and solvers are separate from statistical model definitions.
 The CPU interpreter is authoritative; optional backends lower only supported
 regions and report transfers or fallbacks.
 
+Fitting records semantic and numerical execution graphs. Ordinary CPU
+inference executes the fitted node plan directly without rebuilding lowering
+metadata on every call; explicit `trace` and internal lowering APIs construct
+detailed per-call inspection data when requested.
+
 Useful advanced namespaces are `Tilia.Kernels` and `Tilia.Solvers`. Internal
 graph inspection is available through `Tilia.graph_data`, `Tilia.trace`,
 `Tilia.execution_plan`, and `Tilia.device_placement`.

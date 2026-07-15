@@ -36,6 +36,9 @@ end
         fit(PCA(n_components=1), X),
         fit(TruncatedSVD(n_components=1), X),
         fit(KMeans(n_clusters=2, n_init=1), X),
+        fit(DBSCAN(radius=2.0, min_neighbors=2), X),
+        fit(AgglomerativeClustering(n_clusters=2), X),
+        fit(FeatureAgglomeration(n_clusters=1), X),
         fit(GaussianNaiveBayes(), X, yc),
         fit(LinearDiscriminantAnalysis(), X, yc),
         fit(QuadraticDiscriminantAnalysis(), X, yc),
@@ -46,6 +49,10 @@ end
         fit(Lasso(lambda=0.1), X, yr),
         fit(ElasticNet(lambda=0.1, l1_ratio=0.5), X, yr),
         fit(SparseLogisticRegression(lambda=0.1, max_iterations=20), X, yc),
+        fit(SGDClassifier(epochs=2), X, yc),
+        fit(SGDRegressor(epochs=2), X, yr),
+        fit(MARSRegressor(max_terms=5, max_knots=3), X, yr),
+        fit(PartialLeastSquaresRegression(n_components=1), X, yr),
         fit(DecisionTreeClassifier(), X, yc),
         fit(DecisionTreeRegressor(), X, yr),
         fit(RandomForestClassifier(n_estimators=2), X, yc),
@@ -67,6 +74,9 @@ end
 
     binary = Float64.(X .> 0)
     nonnegative = abs.(X)
+    _test_structural_roundtrip(fit(NMF(n_components=1), nonnegative), nonnegative)
+    _test_structural_roundtrip(fit(RandomProjection(n_components=1), X), X)
+    _test_structural_roundtrip(fit(FastICA(n_components=1), X), X)
     _test_structural_roundtrip(
         fit(MultinomialNaiveBayes(), nonnegative, yc), nonnegative)
     _test_structural_roundtrip(fit(BernoulliRBM(n_components=2, n_iterations=1), binary), binary)

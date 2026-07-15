@@ -48,8 +48,17 @@ include("models/linear/least_squares.jl")
 include("models/linear/logistic.jl")
 include("models/linear/sparse_regression.jl")
 include("models/linear/sparse_logistic.jl")
+include("models/linear/sgd.jl")
+include("models/linear/mars.jl")
+include("models/linear/partial_least_squares.jl")
 include("models/decomposition/pca.jl")
+include("models/decomposition/nmf.jl")
+include("models/decomposition/random_projection.jl")
+include("models/decomposition/fastica.jl")
 include("models/clustering/kmeans.jl")
+include("models/clustering/dbscan.jl")
+include("models/clustering/agglomerative.jl")
+include("models/clustering/feature_agglomeration.jl")
 include("models/probabilistic/gaussian_classifiers.jl")
 include("models/probabilistic/multinomial_naive_bayes.jl")
 include("models/neighbors/nearest_neighbors.jl")
@@ -74,6 +83,7 @@ include("model_selection/split.jl")
 include("model_selection/cross_validation.jl")
 include("persistence/format.jl")
 include("core/api.jl")
+include("core/display.jl")
 include("core/docstrings.jl")
 
 export fit, predict, predict_proba, transform, inverse_transform, partial_fit
@@ -92,7 +102,14 @@ export LinearRegression, RidgeRegression
 export LogisticRegression
 export Lasso, ElasticNet
 export SparseLogisticRegression
-export PCA, TruncatedSVD, KMeans
+export SGDClassifier, SGDRegressor
+export MARSRegressor
+export PartialLeastSquaresRegression
+export PCA, TruncatedSVD, KMeans, DBSCAN, AgglomerativeClustering
+export NMF
+export RandomProjection
+export FastICA
+export FeatureAgglomeration
 export GaussianNaiveBayes, LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 export MultinomialNaiveBayes
 export NearestNeighbors, KNeighborsClassifier, KNeighborsRegressor, kneighbors

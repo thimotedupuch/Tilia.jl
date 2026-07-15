@@ -7,13 +7,22 @@ struct HistGradientBoostingRegressor <: AbstractHistGradientBoosting
     max_bins::Int
     min_samples_leaf::Int
     tolerance::Float64
+    l1_regularization::Float64
+    l2_regularization::Float64
+    row_subsample::Float64
+    feature_subsample::Float64
     function HistGradientBoostingRegressor(; n_estimators::Integer=100,
             learning_rate::Real=0.1, max_depth::Integer=3, max_bins::Integer=255,
-            min_samples_leaf::Integer=5, tolerance::Real=1e-7)
+            min_samples_leaf::Integer=5, tolerance::Real=1e-7,
+            l1_regularization::Real=0.0, l2_regularization::Real=0.0,
+            row_subsample::Real=1.0, feature_subsample::Real=1.0)
         _validate_boosting_parameters(n_estimators, learning_rate, max_depth,
-            max_bins, min_samples_leaf, tolerance)
+            max_bins, min_samples_leaf, tolerance, l1_regularization,
+            l2_regularization, row_subsample, feature_subsample)
         new(Int(n_estimators), Float64(learning_rate), Int(max_depth),
-            Int(max_bins), Int(min_samples_leaf), Float64(tolerance))
+            Int(max_bins), Int(min_samples_leaf), Float64(tolerance),
+            Float64(l1_regularization), Float64(l2_regularization),
+            Float64(row_subsample), Float64(feature_subsample))
     end
 end
 
@@ -24,18 +33,29 @@ struct HistGradientBoostingClassifier <: AbstractHistGradientBoosting
     max_bins::Int
     min_samples_leaf::Int
     tolerance::Float64
+    l1_regularization::Float64
+    l2_regularization::Float64
+    row_subsample::Float64
+    feature_subsample::Float64
     function HistGradientBoostingClassifier(; n_estimators::Integer=100,
             learning_rate::Real=0.1, max_depth::Integer=3, max_bins::Integer=255,
-            min_samples_leaf::Integer=5, tolerance::Real=1e-7)
+            min_samples_leaf::Integer=5, tolerance::Real=1e-7,
+            l1_regularization::Real=0.0, l2_regularization::Real=0.0,
+            row_subsample::Real=1.0, feature_subsample::Real=1.0)
         _validate_boosting_parameters(n_estimators, learning_rate, max_depth,
-            max_bins, min_samples_leaf, tolerance)
+            max_bins, min_samples_leaf, tolerance, l1_regularization,
+            l2_regularization, row_subsample, feature_subsample)
         new(Int(n_estimators), Float64(learning_rate), Int(max_depth),
-            Int(max_bins), Int(min_samples_leaf), Float64(tolerance))
+            Int(max_bins), Int(min_samples_leaf), Float64(tolerance),
+            Float64(l1_regularization), Float64(l2_regularization),
+            Float64(row_subsample), Float64(feature_subsample))
     end
 end
 
 function _validate_boosting_parameters(n_estimators, learning_rate, max_depth,
-                                       max_bins, min_samples_leaf, tolerance)
+                                       max_bins, min_samples_leaf, tolerance,
+                                       l1_regularization, l2_regularization,
+                                       row_subsample, feature_subsample)
     n_estimators > 0 || throw(InvalidHyperparameterError("n_estimators must be positive."))
     isfinite(learning_rate) && learning_rate > 0 || throw(InvalidHyperparameterError(
         "learning_rate must be finite and positive."))
@@ -44,6 +64,14 @@ function _validate_boosting_parameters(n_estimators, learning_rate, max_depth,
     min_samples_leaf > 0 || throw(InvalidHyperparameterError("min_samples_leaf must be positive."))
     isfinite(tolerance) && tolerance >= 0 || throw(InvalidHyperparameterError(
         "tolerance must be finite and nonnegative."))
+    isfinite(l1_regularization) && l1_regularization >= 0 ||
+        throw(InvalidHyperparameterError("l1_regularization must be finite and nonnegative."))
+    isfinite(l2_regularization) && l2_regularization >= 0 ||
+        throw(InvalidHyperparameterError("l2_regularization must be finite and nonnegative."))
+    isfinite(row_subsample) && 0 < row_subsample <= 1 ||
+        throw(InvalidHyperparameterError("row_subsample must lie in (0, 1]."))
+    isfinite(feature_subsample) && 0 < feature_subsample <= 1 ||
+        throw(InvalidHyperparameterError("feature_subsample must lie in (0, 1]."))
 end
 
 struct FittedHistGradientBoosting{M,T,L,TR,R,S} <: AbstractFittedEstimator
@@ -95,6 +123,48 @@ function _boosting_weights(weights, n, T, name)
     result
 end
 
+function _boosting_sample_indices(model, observations, context, iteration, class)
+    count = max(2, ceil(Int, model.row_subsample * observations))
+    count >= observations && return collect(1:observations)
+    rng = derive_context(context, :hist_gradient_boosting, :subsample,
+                         iteration, class).rng
+    sort!(randperm(rng, observations)[1:count])
+end
+
+function _tree_leaf_index(tree, row)
+    node_index = 1
+    while !tree.nodes[node_index].is_leaf
+        node = tree.nodes[node_index]
+        node_index = row[node.feature] <= node.threshold ? node.left : node.right
+    end
+    node_index
+end
+
+function _regularized_newton_tree(tree, X, gradients, hessians, weights,
+                                  l1_regularization, l2_regularization)
+    T = eltype(tree.feature_importances)
+    numerators = zeros(T, length(tree.nodes))
+    denominators = zeros(T, length(tree.nodes))
+    for row in axes(X, 1)
+        leaf = _tree_leaf_index(tree, view(X, row, :))
+        numerators[leaf] += weights[row] * gradients[row]
+        denominators[leaf] += weights[row] * hessians[row]
+    end
+    nodes = copy(tree.nodes)
+    for index in eachindex(nodes)
+        node = nodes[index]
+        node.is_leaf || continue
+        numerator = sign(numerators[index]) *
+            max(abs(numerators[index]) - T(l1_regularization), zero(T))
+        prediction = numerator / (denominators[index] + T(l2_regularization) + eps(T))
+        nodes[index] = TreeNode(node.feature, node.threshold, node.left, node.right,
+            prediction, node.predicted_class, node.probabilities, node.samples,
+            node.weighted_samples, node.impurity, node.is_leaf)
+    end
+    FittedDecisionTree(tree.model, nodes, tree.classes, tree.feature_importances,
+                       tree.report, tree.schema)
+end
+
 function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::AbstractVector;
              weights=nothing, context=default_context())
     require_cpu(context, "HistGradientBoostingRegressor fitting")
@@ -115,9 +185,16 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
         residual = target .- predictions
         tree_context = derive_context(context, :hist_gradient_boosting,
                                       :iteration, iteration, :class, 1)
+        indices = _boosting_sample_indices(model, size(X, 1), context, iteration, 1)
         tree = fit(DecisionTreeRegressor(max_depth=model.max_depth,
-            min_samples_leaf=min(model.min_samples_leaf, max(1, size(X, 1) ÷ 2))),
-            binned, residual; weights=observation_weights, context=tree_context)
+            min_samples_leaf=min(model.min_samples_leaf, max(1, length(indices) ÷ 2)),
+            max_features=model.feature_subsample),
+            view(binned, indices, :), view(residual, indices);
+            weights=view(observation_weights, indices), context=tree_context)
+        tree = _regularized_newton_tree(tree, view(binned, indices, :),
+            view(residual, indices), ones(T, length(indices)),
+            view(observation_weights, indices), model.l1_regularization,
+            model.l2_regularization)
         push!(trees, tree)
         predictions .+= T(model.learning_rate) .* predict(tree, binned)
         loss = sum(observation_weights .* abs2.(target .- predictions)) / sum(observation_weights)
@@ -129,7 +206,11 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
     end
     details = (n_estimators=length(trees), converged=converged,
                objective_history=history, max_bins=model.max_bins,
-               bins_per_feature=length.(edges), loss=:squared_error)
+               bins_per_feature=length.(edges), loss=:squared_error,
+               second_order=true, l1_regularization=model.l1_regularization,
+               l2_regularization=model.l2_regularization,
+               row_subsample=model.row_subsample,
+               feature_subsample=model.feature_subsample)
     FittedHistGradientBoosting(model, edges, trees, T[initial], nothing,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
                   details=details, context=context), with_target(infer_schema(X), y))
@@ -167,12 +248,24 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
     tolerance = T(effective_tolerance(context, model.tolerance))
     for iteration in 1:max_iterations
         for column in eachindex(trained_classes)
-            residual = view(targets, :, column) .- Kernels.sigmoid(view(logits, :, column))
+            probabilities = Kernels.sigmoid(view(logits, :, column))
+            residual = view(targets, :, column) .- probabilities
+            hessians = max.(probabilities .* (one(T) .- probabilities), eps(T))
             tree_context = derive_context(context, :hist_gradient_boosting,
                                           :iteration, iteration, :class, column)
+            indices = _boosting_sample_indices(
+                model, size(X, 1), context, iteration, column)
+            newton_targets = residual[indices] ./ hessians[indices]
+            newton_weights = observation_weights[indices] .* hessians[indices]
             tree = fit(DecisionTreeRegressor(max_depth=model.max_depth,
-                min_samples_leaf=min(model.min_samples_leaf, max(1, size(X, 1) ÷ 2))),
-                binned, residual; weights=observation_weights, context=tree_context)
+                min_samples_leaf=min(model.min_samples_leaf, max(1, length(indices) ÷ 2)),
+                max_features=model.feature_subsample),
+                view(binned, indices, :), newton_targets;
+                weights=newton_weights, context=tree_context)
+            tree = _regularized_newton_tree(tree, view(binned, indices, :),
+                view(residual, indices), view(hessians, indices),
+                view(observation_weights, indices), model.l1_regularization,
+                model.l2_regularization)
             push!(trees[column], tree)
             logits[:, column] .+= T(model.learning_rate) .* predict(tree, binned)
         end
@@ -194,7 +287,11 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
     details = (n_estimators=length(first(trees)), converged=converged,
                objective_history=history, max_bins=model.max_bins,
                bins_per_feature=length.(edges), loss=:log_loss,
-               class_order=copy(classes), strategy=:one_vs_rest)
+               class_order=copy(classes), strategy=:one_vs_rest,
+               second_order=true, l1_regularization=model.l1_regularization,
+               l2_regularization=model.l2_regularization,
+               row_subsample=model.row_subsample,
+               feature_subsample=model.feature_subsample)
     schema = with_class_target(infer_schema(X), classes)
     FittedHistGradientBoosting(model, edges, trees, initial, classes,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,

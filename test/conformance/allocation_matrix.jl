@@ -14,7 +14,9 @@
                          RidgeRegression(lambda=0.1)), X, y)
     predict(pipeline, X)
     graph_allocation = @allocated predict(pipeline, X)
-    @test graph_allocation <= 1_000_000
+    # Ordinary inference executes fitted nodes directly; numerical re-lowering
+    # is reserved for explicit inspection and tracing.
+    @test graph_allocation <= 20_000
 
     truth = repeat([:a, :b], 32)
     predicted = copy(truth)

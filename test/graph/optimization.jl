@@ -127,6 +127,10 @@
     @test lowered_probability.graph.nodes[end].operation == :predict_proba
     @test lowered_probability.graph.nodes[end].output_shape == (2, 2)
     @test vec(sum(lowered_probability.output; dims=2)) ≈ ones(2)
+    @test Tilia._execute_fitted_graph(classifier,
+        [-2.0 0.0; 2.0 0.0], :predict_proba) ≈ lowered_probability.output
+    @test_throws ArgumentError Tilia._execute_fitted_graph(
+        classifier, [-2.0 0.0; 2.0 0.0], :bad)
     probability_trace = Tilia.trace(classifier,
         [-2.0 0.0; 2.0 0.0]; operation=:predict_proba)
     @test size(probability_trace.output) == (2, 2)

@@ -101,6 +101,34 @@ end
 output_schema(model::Union{PCA,TruncatedSVD}, schema::Schema) =
     _decomposition_schema(model, schema, typemax(Int))
 
+function output_schema(model::NMF, schema::Schema)
+    physical = float(promote_type((column.physical_type for column in schema.columns)...))
+    _schema_with_columns(schema,
+        _generated_columns(:component, model.n_components, physical;
+            provenance=[column.name for column in schema.columns]))
+end
+
+function output_schema(model::RandomProjection, schema::Schema)
+    physical = float(promote_type((column.physical_type for column in schema.columns)...))
+    _schema_with_columns(schema,
+        _generated_columns(:projection, model.n_components, physical;
+            provenance=[column.name for column in schema.columns]))
+end
+
+function output_schema(model::FastICA, schema::Schema)
+    physical = float(promote_type((column.physical_type for column in schema.columns)...))
+    _schema_with_columns(schema,
+        _generated_columns(:independent_component, model.n_components, physical;
+            provenance=[column.name for column in schema.columns]))
+end
+
+function output_schema(model::FeatureAgglomeration, schema::Schema)
+    physical = float(promote_type((column.physical_type for column in schema.columns)...))
+    _schema_with_columns(schema,
+        _generated_columns(:feature_cluster, model.n_clusters, physical;
+            provenance=[column.name for column in schema.columns]))
+end
+
 function output_schema(model::NearestNeighbors, schema::Schema)
     physical = float(promote_type((column.physical_type for column in schema.columns)...))
     _schema_with_columns(schema,

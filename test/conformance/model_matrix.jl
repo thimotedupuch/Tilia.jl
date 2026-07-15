@@ -11,9 +11,20 @@ const NUMERICAL_CONFORMANCE_CASES = (
     (type=Lasso, make=T -> Lasso(lambda=T(0.05), max_iterations=50)),
     (type=ElasticNet, make=T -> ElasticNet(lambda=T(0.05), l1_ratio=T(0.5), max_iterations=50)),
     (type=SparseLogisticRegression, make=T -> SparseLogisticRegression(lambda=T(0.05), max_iterations=50)),
+    (type=SGDClassifier, make=T -> SGDClassifier(learning_rate=T(0.05), epochs=2, batch_size=8)),
+    (type=SGDRegressor, make=T -> SGDRegressor(learning_rate=T(0.05), epochs=2, batch_size=8)),
+    (type=MARSRegressor, make=T -> MARSRegressor(max_terms=5, max_knots=4)),
+    (type=PartialLeastSquaresRegression,
+     make=T -> PartialLeastSquaresRegression(n_components=2)),
     (type=PCA, make=T -> PCA(n_components=2)),
     (type=TruncatedSVD, make=T -> TruncatedSVD(n_components=2)),
+    (type=NMF, make=T -> NMF(n_components=2, max_iterations=20)),
+    (type=RandomProjection, make=T -> RandomProjection(n_components=2)),
+    (type=FastICA, make=T -> FastICA(n_components=2, max_iterations=50)),
     (type=KMeans, make=T -> KMeans(n_clusters=2, n_init=1, max_iterations=20)),
+    (type=DBSCAN, make=T -> DBSCAN(radius=T(1.5), min_neighbors=2)),
+    (type=AgglomerativeClustering, make=T -> AgglomerativeClustering(n_clusters=2)),
+    (type=FeatureAgglomeration, make=T -> FeatureAgglomeration(n_clusters=2)),
     (type=GaussianNaiveBayes, make=T -> GaussianNaiveBayes()),
     (type=MultinomialNaiveBayes, make=T -> MultinomialNaiveBayes()),
     (type=LinearDiscriminantAnalysis, make=T -> LinearDiscriminantAnalysis()),
@@ -47,6 +58,7 @@ function _conformance_data(::Type{T}, model) where {T}
     X = T[sin(i * (j + 0.3)) + cos((i + 2j) / 3) for i in 1:16, j in 1:4]
     model isa BernoulliRBM && (X = T.(X .> 0))
     model isa MultinomialNaiveBayes && (X = abs.(X))
+    model isa NMF && (X = abs.(X))
     yreg = T[0.7X[i, 1] - 0.2X[i, 2] + 0.1i for i in axes(X, 1)]
     yclass = [i <= 8 ? :negative : :positive for i in axes(X, 1)]
     X, yreg, yclass
@@ -161,10 +173,20 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                         online = partial_fit(case.make(T), X[1:8, :])
                         online = partial_fit(online, X[9:16, :])
                         @test transform(online, X) ≈ transform(first_fit, X) rtol=1e-4
+                    elseif model isa SGDRegressor
+                        online = partial_fit(case.make(T), X[1:8, :], yreg[1:8])
+                        online = partial_fit(online, X[9:16, :], yreg[9:16])
+                        @test length(predict(online, X)) == size(X, 1)
+                    elseif model isa SGDClassifier
+                        online = partial_fit(case.make(T), X[1:8, :], yclass[1:8];
+                                             classes=sort(unique(yclass)))
+                        online = partial_fit(online, X[9:16, :], yclass[9:16])
+                        @test size(predict_proba(online, X), 2) == 2
                     end
                 end
 
-                preprocessor = model isa MultinomialNaiveBayes ? MinMaxScale() : Standardize()
+                preprocessor = model isa Union{MultinomialNaiveBayes,NMF} ?
+                    MinMaxScale() : Standardize()
                 graph_model = declared.task in (:transformation, :neighbors) ?
                     Chain(case.make(T), Standardize()) :
                     Chain(preprocessor, case.make(T))
