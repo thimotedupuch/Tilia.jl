@@ -26,6 +26,10 @@ end
     fitted_models = (
         fit(MeanRegressor(), X, yr),
         fit(Standardize(), X),
+        fit(MinMaxScale(), X),
+        fit(RobustScale(), X),
+        fit(Normalize(), X),
+        fit(PolynomialFeatures(degree=2), X),
         fit(LinearRegression(), X, yr),
         fit(RidgeRegression(lambda=0.2), X, yr),
         fit(LogisticRegression(lambda=0.5, max_iterations=30), X, yc),
@@ -62,6 +66,9 @@ end
     end
 
     binary = Float64.(X .> 0)
+    nonnegative = abs.(X)
+    _test_structural_roundtrip(
+        fit(MultinomialNaiveBayes(), nonnegative, yc), nonnegative)
     _test_structural_roundtrip(fit(BernoulliRBM(n_components=2, n_iterations=1), binary), binary)
 
     selected = fit(Select(1), X)

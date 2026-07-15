@@ -1,7 +1,7 @@
 # Feature-count and backend declarations live after estimator definitions so
 # graph metadata remains centralized without introducing backend checks in
 # individual fitting implementations.
-preserves_feature_count(::Union{Standardize,Impute}) = true
+preserves_feature_count(::Union{Standardize,MinMaxScale,RobustScale,Normalize,Impute}) = true
 
 backend_compatibility(::Union{Standardize,LogisticRegression}) = (:cpu, :reactant)
 
@@ -34,7 +34,21 @@ function _schema_indices(schema::Schema, columns)
     indices
 end
 
-output_schema(::Standardize, schema::Schema) = schema
+output_schema(::Union{Standardize,MinMaxScale,RobustScale,Normalize}, schema::Schema) = schema
+
+function output_schema(model::PolynomialFeatures, schema::Schema)
+    terms = _polynomial_terms(nfeatures(schema), model.degree,
+                              model.interaction_only, model.include_bias)
+    physical = float(promote_type((column.physical_type for column in schema.columns)...))
+    columns = ColumnSchema[]
+    for (index, term) in enumerate(terms)
+        provenance = unique([schema.columns[feature].name for feature in term])
+        name = isempty(term) ? :bias : Symbol("polynomial", index)
+        push!(columns, ColumnSchema(name, :continuous, physical, false, :feature;
+            provenance, generated_name=name))
+    end
+    _schema_with_columns(schema, columns)
+end
 
 function output_schema(::Impute, schema::Schema)
     columns = [ColumnSchema(column.name, column.logical_type,

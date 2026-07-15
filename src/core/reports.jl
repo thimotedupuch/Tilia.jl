@@ -39,6 +39,20 @@ FitReport(status::Symbol, observations::Int, features::Int, backend::Symbol,
 
 struct ConfusionMatrix{T,L}; matrix::Matrix{T}; labels::Vector{L}; end
 struct ROCResult{T}; false_positive_rate::Vector{T}; true_positive_rate::Vector{T}; thresholds::Vector{T}; end
+struct PrecisionRecallResult{T}; precision::Vector{T}; recall::Vector{T}; thresholds::Vector{T}; end
+struct CalibrationResult{T}
+    mean_predicted_probability::Vector{T}
+    fraction_positive::Vector{T}
+    counts::Vector{T}
+    bin_edges::Vector{T}
+end
+struct PermutationImportanceResult{T,L}
+    baseline_score::T
+    importances::Matrix{T}
+    mean_importance::Vector{T}
+    standard_deviation::Vector{T}
+    feature_names::Vector{L}
+end
 struct CrossValidationResult{T,M,R}
     scores::Vector{T}
     fitted_models::Vector{M}

@@ -1,6 +1,10 @@
 const NUMERICAL_CONFORMANCE_CASES = (
     (type=MeanRegressor, make=T -> MeanRegressor()),
     (type=Standardize, make=T -> Standardize()),
+    (type=MinMaxScale, make=T -> MinMaxScale()),
+    (type=RobustScale, make=T -> RobustScale()),
+    (type=Normalize, make=T -> Normalize()),
+    (type=PolynomialFeatures, make=T -> PolynomialFeatures(degree=2)),
     (type=LinearRegression, make=T -> LinearRegression()),
     (type=RidgeRegression, make=T -> RidgeRegression(lambda=T(0.2))),
     (type=LogisticRegression, make=T -> LogisticRegression(lambda=T(0.5), max_iterations=30)),
@@ -11,6 +15,7 @@ const NUMERICAL_CONFORMANCE_CASES = (
     (type=TruncatedSVD, make=T -> TruncatedSVD(n_components=2)),
     (type=KMeans, make=T -> KMeans(n_clusters=2, n_init=1, max_iterations=20)),
     (type=GaussianNaiveBayes, make=T -> GaussianNaiveBayes()),
+    (type=MultinomialNaiveBayes, make=T -> MultinomialNaiveBayes()),
     (type=LinearDiscriminantAnalysis, make=T -> LinearDiscriminantAnalysis()),
     (type=QuadraticDiscriminantAnalysis, make=T -> QuadraticDiscriminantAnalysis()),
     (type=NearestNeighbors, make=T -> NearestNeighbors(n_neighbors=3)),
@@ -41,6 +46,7 @@ const NUMERICAL_CONFORMANCE_CASES = (
 function _conformance_data(::Type{T}, model) where {T}
     X = T[sin(i * (j + 0.3)) + cos((i + 2j) / 3) for i in 1:16, j in 1:4]
     model isa BernoulliRBM && (X = T.(X .> 0))
+    model isa MultinomialNaiveBayes && (X = abs.(X))
     yreg = T[0.7X[i, 1] - 0.2X[i, 2] + 0.1i for i in axes(X, 1)]
     yclass = [i <= 8 ? :negative : :positive for i in axes(X, 1)]
     X, yreg, yclass
@@ -158,9 +164,10 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                     end
                 end
 
+                preprocessor = model isa MultinomialNaiveBayes ? MinMaxScale() : Standardize()
                 graph_model = declared.task in (:transformation, :neighbors) ?
                     Chain(case.make(T), Standardize()) :
-                    Chain(Standardize(), case.make(T))
+                    Chain(preprocessor, case.make(T))
                 graph_fit = if declared.task === :regression
                     fit(graph_model, X, yreg)
                 elseif declared.task === :classification
@@ -169,9 +176,9 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                     fit(graph_model, X)
                 end
                 repeated_graph_fit = if declared.task === :regression
-                    fit(Chain(Standardize(), case.make(T)), X, yreg)
+                    fit(Chain(preprocessor, case.make(T)), X, yreg)
                 elseif declared.task === :classification
-                    fit(Chain(Standardize(), case.make(T)), X, yclass)
+                    fit(Chain(preprocessor, case.make(T)), X, yclass)
                 else
                     repeated_model = declared.task in (:transformation, :neighbors) ?
                         Chain(case.make(T), Standardize()) :

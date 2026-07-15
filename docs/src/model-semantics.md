@@ -16,6 +16,10 @@ error unless an explicit preprocessing or numerical policy says otherwise.
 | `ElasticNet` | Squared loss plus `lambda*l1_ratio` L1 and `lambda*(1-l1_ratio)` L2 penalties; coordinate descent. | Same convergence and intercept convention as Lasso. |
 | `SparseLogisticRegression` | Weighted logistic loss with L1/L2 elastic-net terms; proximal gradient. | Parameter-change tolerance or `max_iterations`; unpenalized intercept and sorted classes. |
 | `Standardize` | Per-feature population mean and standard deviation using the policy accumulation type. | Zero-variance scales become one; sparse centering errors or explicitly densifies according to `NumericsPolicy`. |
+| `MinMaxScale` | Per-feature affine mapping from training extrema into `feature_range`. | Constant features map to the lower endpoint; optional clipping applies only during transformation. |
+| `RobustScale` | Per-feature median centering and interquantile scaling. | Zero quantile ranges use a scale of one; centering and scaling are independently optional. |
+| `Normalize` | Per-observation L1, L2, or maximum-norm scaling. | Zero rows remain zero; sparse inputs preserve sparse structure. |
+| `PolynomialFeatures` | Deterministic monomials ordered by total degree and feature index. | Degree is limited to 32 and output width to 100,000 columns, rejecting accidental combinatorial expansion before allocation. |
 | `PCA` | SVD of centered observations; leading right singular vectors. | Explained variance uses the documented sample covariance convention; component signs are canonicalized. |
 | `TruncatedSVD` | Leading singular vectors without centering, preserving sparse semantics. | Fixed component count; singular values are nonnegative and ordered. |
 | `KMeans` | Minimize within-cluster squared Euclidean distance by Lloyd updates with deterministic named restarts. | Center displacement tolerance or `max_iterations`; the lowest-inertia restart wins. |

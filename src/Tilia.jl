@@ -39,6 +39,7 @@ include("graph/passes/conversion_elimination.jl")
 include("graph/passes/constant_folding.jl")
 include("graph/passes/device_placement.jl")
 include("preprocessing/standardize.jl")
+include("preprocessing/feature_transforms.jl")
 include("preprocessing/impute.jl")
 include("preprocessing/encode.jl")
 include("graph/composition.jl")
@@ -50,6 +51,7 @@ include("models/linear/sparse_logistic.jl")
 include("models/decomposition/pca.jl")
 include("models/clustering/kmeans.jl")
 include("models/probabilistic/gaussian_classifiers.jl")
+include("models/probabilistic/multinomial_naive_bayes.jl")
 include("models/neighbors/nearest_neighbors.jl")
 include("models/mixture/gaussian_mixture.jl")
 include("models/trees/decision_tree.jl")
@@ -67,6 +69,7 @@ include("graph/optimization.jl")
 include("graph/tracing.jl")
 include("metrics/regression.jl")
 include("metrics/classification.jl")
+include("inspection/permutation_importance.jl")
 include("model_selection/split.jl")
 include("model_selection/cross_validation.jl")
 include("persistence/format.jl")
@@ -78,9 +81,12 @@ export evaluate, tune, report, save_model, load_model
 export Chain, Parallel, ColumnMap, Select, Concatenate
 export CPUBackend, ReactantBackend, NumericsPolicy, FitContext, CompilationCache
 export default_context, derive_context
-export ConfusionMatrix, ROCResult, CrossValidationResult, OptimizationTrace, TuningResult
+export ConfusionMatrix, ROCResult, PrecisionRecallResult, CalibrationResult
+export PermutationImportanceResult
+export CrossValidationResult, OptimizationTrace, TuningResult
 export AbstractEstimator, AbstractFittedEstimator, AbstractTransformer, AbstractPredictor
 export MeanRegressor, Standardize, Dataset, Schema, ColumnSchema
+export MinMaxScale, RobustScale, Normalize, PolynomialFeatures
 export Impute, OneHotEncode, ColumnTable, CategoricalColumn, column_table
 export LinearRegression, RidgeRegression
 export LogisticRegression
@@ -88,6 +94,7 @@ export Lasso, ElasticNet
 export SparseLogisticRegression
 export PCA, TruncatedSVD, KMeans
 export GaussianNaiveBayes, LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+export MultinomialNaiveBayes
 export NearestNeighbors, KNeighborsClassifier, KNeighborsRegressor, kneighbors
 export GaussianMixture
 export DecisionTreeClassifier, DecisionTreeRegressor
@@ -102,6 +109,8 @@ export BernoulliRBM
 export capabilities, input_contract, output_schema
 export model_catalog
 export accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+export roc_curve, precision_recall_curve, calibration_curve, area_under_curve
+export permutation_importance
 export log_loss, mean_squared_error, root_mean_squared_error
 export train_test_split, KFold, split, cross_validate
 

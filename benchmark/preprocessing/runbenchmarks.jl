@@ -26,3 +26,20 @@ for observations in (100, 1_000, 10_000)
              output_features=size(encode_operation(), 2)))
 end
 end
+
+let rng = Xoshiro(42)
+for observations in (100, 1_000, 10_000)
+    X = randn(rng, Float32, observations, 16)
+    for model in (MinMaxScale(), RobustScale(), Normalize(),
+                  PolynomialFeatures(degree=2, include_bias=false))
+        fitted = fit(model, X)
+        operation = () -> transform(fitted, X)
+        first = @elapsed operation()
+        steady = median([@elapsed operation() for _ in 1:3])
+        println((benchmark=:numeric_preprocessing,
+                 transformer=Symbol(nameof(typeof(model))), observations,
+                 features=size(X, 2), output_features=size(operation(), 2),
+                 first_call_seconds=first, steady_state_seconds=steady))
+    end
+end
+end

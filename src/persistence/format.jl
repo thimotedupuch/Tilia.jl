@@ -466,7 +466,8 @@ end
 function save_model(path::AbstractString, fitted::FittedGraph)
     any(node -> node isa Union{FittedSelect,FittedParallel,FittedConcatenate,
                                FittedColumnMap,FittedDecomposition,FittedKMeans,
-                               FittedGaussianNaiveBayes,FittedDiscriminantAnalysis,
+                               FittedMinMaxScale,FittedRobustScale,FittedNormalize,FittedPolynomialFeatures,
+                               FittedGaussianNaiveBayes,FittedMultinomialNaiveBayes,FittedDiscriminantAnalysis,
                                FittedGaussianMixture,FittedNearestNeighbors,
                                FittedSparseLinearRegressor,FittedSparseLogisticRegression,
                                FittedDecisionTree,FittedForest,FittedHistGradientBoosting,

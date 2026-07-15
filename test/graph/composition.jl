@@ -86,4 +86,11 @@ end
     @test capabilities(Select(1)).sparse
     @test !capabilities(Chain(Standardize(), Lasso())).sparse
     @test capabilities(Chain(Impute(), RidgeRegression())).missing
+    @test output_schema(RobustScale(), matrix_schema) == matrix_schema
+
+    polynomial_schema = output_schema(
+        PolynomialFeatures(degree=2), matrix_schema)
+    @test Tilia.nfeatures(polynomial_schema) == 10
+    @test polynomial_schema.columns[1].name == :bias
+    @test polynomial_schema.columns[2].provenance == [:x1]
 end

@@ -10,7 +10,7 @@ for observations in (100, 1_000, 10_000)
          for row in axes(X, 1)]
     model = Chain(Standardize(), LogisticRegression(lambda=1.0f0))
 
-    cpu = fit(model, X, y)
+    cpu_fit = @elapsed cpu = fit(model, X, y)
     cpu_operation = () -> predict_proba(cpu, X)
     cpu_first = @elapsed cpu_operation()
     cpu_steady = median([@elapsed cpu_operation() for _ in 1:3])
@@ -31,6 +31,7 @@ for observations in (100, 1_000, 10_000)
         steady_state_seconds=accelerator_steady,
         cpu_first_call_seconds=cpu_first,
         cpu_steady_state_seconds=cpu_steady,
+        cpu_fit_wall_seconds=cpu_fit,
         transferred_bytes=diagnostics.transferred_bytes,
         cache_hits=diagnostics.compilation_cache_hits))
 end

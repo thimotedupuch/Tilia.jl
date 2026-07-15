@@ -1,0 +1,26 @@
+[source]
+package = "scikit-learn"
+version = "1.9.0"
+
+[tolerance]
+absolute = 1.0e-12
+relative = 1.0e-12
+
+[input]
+targets = [0, 0, 1, 1]
+scores = [0.1, 0.4, 0.35, 0.8]
+
+[roc]
+false_positive_rate = [0.0, 0.0, 0.5, 0.5, 1.0]
+true_positive_rate = [0.0, 0.5, 0.5, 1.0, 1.0]
+thresholds = [inf, 0.8, 0.4, 0.35, 0.1]
+area = 0.75
+
+[precision_recall]
+precision = [0.5, 0.6666666666666666, 0.5, 1.0, 1.0]
+recall = [1.0, 1.0, 0.5, 0.5, 0.0]
+thresholds = [0.1, 0.35, 0.4, 0.8]
+
+[calibration]
+fraction_positive = [0.3333333333333333, 1.0]
+mean_predicted_probability = [0.2833333333333333, 0.8]

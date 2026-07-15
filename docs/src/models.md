@@ -1,8 +1,9 @@
 # Models
 
 Foundational models include linear, ridge, logistic, Lasso, and elastic-net
-estimators. Decomposition and probabilistic families include PCA, truncated
-SVD, k-means, Gaussian mixtures, naive Bayes, LDA, and QDA. Exact neighbors,
+estimators. Native preprocessing includes standard, min–max, robust, row normalization,
+and polynomial feature transforms. Decomposition and probabilistic families include PCA, truncated
+SVD, k-means, Gaussian mixtures, Gaussian and multinomial naive Bayes, LDA, and QDA. Exact neighbors,
 CART, forests, extra trees, histogram boosting, and isolation forest cover
 pairwise and branch-heavy workloads. Kernel ridge, support-vector estimators,
 shallow MLPs, and Bernoulli RBMs complete the initial model set.

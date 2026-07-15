@@ -123,8 +123,8 @@ function _kmeans_run(model, X, rng, tolerance, max_iterations)
     converged = false
     iterations = max_iterations
     objective_history = eltype(X)[]
+    distances = _squared_distance_matrix(X, centers)
     for iteration in 1:max_iterations
-        distances = _squared_distance_matrix(X, centers)
         _assign_kmeans_labels!(labels, distances)
         _updated_kmeans_centers!(new_centers, counts, X, labels, distances)
         shift = maximum(sum(abs2, view(new_centers, cluster, :) .-
@@ -133,13 +133,13 @@ function _kmeans_run(model, X, rng, tolerance, max_iterations)
         updated_distances = _squared_distance_matrix(X, centers)
         push!(objective_history,
             sum(updated_distances[row, labels[row]] for row in axes(X, 1)))
+        distances = updated_distances
         if shift <= tolerance^2
             converged = true
             iterations = iteration
             break
         end
     end
-    distances = _squared_distance_matrix(X, centers)
     _assign_kmeans_labels!(labels, distances)
     inertia = sum(distances[row, labels[row]] for row in axes(X, 1))
     (centers=centers, labels=labels, inertia=inertia, iterations=iterations,

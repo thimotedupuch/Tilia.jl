@@ -1,9 +1,11 @@
 const REGISTERED_ESTIMATOR_TYPES = (
-    MeanRegressor, Standardize, Impute, OneHotEncode,
+    MeanRegressor, Standardize, MinMaxScale, RobustScale, Normalize, PolynomialFeatures,
+    Impute, OneHotEncode,
     LinearRegression, RidgeRegression, LogisticRegression,
     Lasso, ElasticNet, SparseLogisticRegression,
     PCA, TruncatedSVD, KMeans,
-    GaussianNaiveBayes, LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis,
+    GaussianNaiveBayes, MultinomialNaiveBayes,
+    LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis,
     NearestNeighbors, KNeighborsClassifier, KNeighborsRegressor,
     GaussianMixture,
     DecisionTreeClassifier, DecisionTreeRegressor,

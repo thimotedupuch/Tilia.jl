@@ -44,11 +44,16 @@ function pairwise_distances(left::AbstractMatrix, right::AbstractMatrix=left; me
     if metric === :euclidean || metric === :squared_euclidean
         left_data = eltype(left) === result_type ? left : result_type.(left)
         right_data = eltype(right) === result_type ? right : result_type.(right)
-        result = Matrix{result_type}(left_data * transpose(right_data))
+        result = Matrix{result_type}(undef, size(left, 1), size(right, 1))
+        mul!(result, left_data, transpose(right_data),
+             -result_type(2), zero(result_type))
         left_norms = vec(sum(abs2, left_data; dims=2))
         right_norms = vec(sum(abs2, right_data; dims=2))
-        result .= max.(left_norms .+ transpose(right_norms) .- 2 .* result,
-                       zero(result_type))
+        @inbounds for column in axes(result, 2), row in axes(result, 1)
+            result[row, column] = max(
+                left_norms[row] + right_norms[column] + result[row, column],
+                zero(result_type))
+        end
         metric === :euclidean && (result .= sqrt.(result))
         return result
     end

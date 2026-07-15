@@ -41,6 +41,9 @@ fitted = fit(MeanRegressor(), [1.0;; 2.0], [1.0, 3.0])
 
 @doc """Confusion-matrix values and deterministic label ordering.""" ConfusionMatrix
 @doc """False-positive rates, true-positive rates, and thresholds for an ROC curve.""" ROCResult
+@doc """Precision, recall, and aligned descending score thresholds.""" PrecisionRecallResult
+@doc """Observed binary frequencies grouped by predicted-probability bins.""" CalibrationResult
+@doc """Repeated score degradation from independently permuting each feature.""" PermutationImportanceResult
 @doc """Fold scores, fitted folds, reports, and exact split indices.""" CrossValidationResult
 @doc """Objective values and convergence status from iterative optimization.""" OptimizationTrace
 
@@ -85,6 +88,9 @@ end
 
 @_example ConfusionMatrix "result = confusion_matrix([:a, :b], [:a, :a])"
 @_example ROCResult "result = ROCResult([0.0, 1.0], [0.0, 1.0], [Inf, 0.0])"
+@_example PrecisionRecallResult "result = precision_recall_curve([0, 1], [0.2, 0.8])"
+@_example CalibrationResult "result = calibration_curve([0, 1], [0.2, 0.8]; n_bins=2)"
+@_example PermutationImportanceResult "result = permutation_importance(fit(RidgeRegression(), randn(8, 2), randn(8)), randn(8, 2), randn(8))"
 @_example CrossValidationResult "result = cross_validate(RidgeRegression(), randn(8, 2), randn(8); cv=KFold(2))"
 @_example OptimizationTrace "trace = OptimizationTrace([2.0, 1.0], true)"
 @_example TuningResult "result = tune(RidgeRegression(), randn(8, 2), randn(8); parameter_grid=(lambda=[0.1],))"
@@ -96,6 +102,10 @@ end
 
 @_example MeanRegressor "model = MeanRegressor()"
 @_example Standardize "transformer = Standardize(center=true, scale=true)"
+@_example MinMaxScale "transformer = MinMaxScale(feature_range=(-1.0, 1.0))"
+@_example RobustScale "transformer = RobustScale(quantile_range=(0.1, 0.9))"
+@_example Normalize "transformer = Normalize(norm=:l2)"
+@_example PolynomialFeatures "transformer = PolynomialFeatures(degree=2)"
 @_example Dataset "data = Dataset(randn(4, 2); target=randn(4))"
 @_example Schema "schema = Schema([ColumnSchema(:x, :continuous, Float64, false, :feature)])"
 @_example ColumnSchema "column = ColumnSchema(:age, :continuous, Float64, false, :feature)"
@@ -115,6 +125,7 @@ end
 @_example TruncatedSVD "model = TruncatedSVD(n_components=2)"
 @_example KMeans "model = KMeans(n_clusters=3)"
 @_example GaussianNaiveBayes "model = GaussianNaiveBayes()"
+@_example MultinomialNaiveBayes "model = MultinomialNaiveBayes(alpha=1.0)"
 @_example LinearDiscriminantAnalysis "model = LinearDiscriminantAnalysis()"
 @_example QuadraticDiscriminantAnalysis "model = QuadraticDiscriminantAnalysis()"
 @_example NearestNeighbors "index = fit(NearestNeighbors(n_neighbors=3), randn(10, 2))"
@@ -148,6 +159,11 @@ end
 @_example recall_score "recall_score([:a, :b], [:a, :a])"
 @_example f1_score "f1_score([:a, :b], [:a, :a])"
 @_example confusion_matrix "confusion_matrix([:a, :b], [:a, :a])"
+@_example roc_curve "roc_curve([:no, :yes], [0.1, 0.9])"
+@_example precision_recall_curve "precision_recall_curve([:no, :yes], [0.1, 0.9])"
+@_example calibration_curve "calibration_curve([:no, :yes], [0.1, 0.9]; n_bins=2)"
+@_example area_under_curve "area_under_curve(roc_curve([:no, :yes], [0.1, 0.9]))"
+@_example permutation_importance "permutation_importance(fit(RidgeRegression(), randn(12, 2), randn(12)), randn(12, 2), randn(12); n_repeats=2)"
 @_example log_loss "log_loss([1, 2], [0.8 0.2; 0.1 0.9])"
 @_example mean_squared_error "mean_squared_error([1.0, 2.0], [1.0, 3.0])"
 @_example root_mean_squared_error "root_mean_squared_error([1.0, 2.0], [1.0, 3.0])"

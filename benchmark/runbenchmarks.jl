@@ -1,5 +1,5 @@
 for suite in ("compilation", "kernels", "training", "inference", "memory", "graph",
-              "cpu_scaling", "sparse", "preprocessing")
+              "cpu_scaling", "sparse", "preprocessing", "inspection")
     println((suite=suite,))
     include(joinpath(@__DIR__, suite, "runbenchmarks.jl"))
 end
