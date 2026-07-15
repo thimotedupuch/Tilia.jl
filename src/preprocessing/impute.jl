@@ -84,7 +84,10 @@ function fit(model::Impute, table::ColumnTable; context=default_context())
                    for (column, metadata) in zip(table.columns, table.schema.columns))...)
     missing_counts = [count(ismissing, column) for column in table.columns]
     output_columns = [ColumnSchema(metadata.name, metadata.logical_type, metadata.physical_type,
-                                   false, metadata.role) for metadata in table.schema.columns]
+        false, metadata.role; levels=metadata.levels, ordered=metadata.ordered,
+        unknown_policy=metadata.unknown_policy, missing_policy=:imputed,
+        code_type=metadata.code_type, provenance=metadata.provenance,
+        generated_name=metadata.generated_name) for metadata in table.schema.columns]
     output_schema = Schema(output_columns; target_name=table.schema.target_name,
                            class_order=table.schema.class_order)
     FittedImpute(model, fills,

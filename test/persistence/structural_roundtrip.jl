@@ -1,6 +1,6 @@
 function _roundtrip_output(fitted, X)
     task = capabilities(fitted.model).task
-    task === :transformation && return transform(fitted, X)
+    task in (:transformation, :neighbors) && return transform(fitted, X)
     task === :anomaly_detection && return anomaly_score(fitted, X)
     capabilities(fitted.model).probabilistic && return predict_proba(fitted, X)
     predict(fitted, X)
@@ -24,23 +24,38 @@ end
     yc = [:left, :left, :right, :right, :right, :left]
 
     fitted_models = (
+        fit(MeanRegressor(), X, yr),
+        fit(Standardize(), X),
+        fit(LinearRegression(), X, yr),
+        fit(RidgeRegression(lambda=0.2), X, yr),
+        fit(LogisticRegression(lambda=0.5, max_iterations=30), X, yc),
         fit(PCA(n_components=1), X),
+        fit(TruncatedSVD(n_components=1), X),
         fit(KMeans(n_clusters=2, n_init=1), X),
         fit(GaussianNaiveBayes(), X, yc),
         fit(LinearDiscriminantAnalysis(), X, yc),
         fit(QuadraticDiscriminantAnalysis(), X, yc),
         fit(GaussianMixture(n_components=2, n_init=1), X),
+        fit(NearestNeighbors(n_neighbors=2), X),
         fit(KNeighborsClassifier(n_neighbors=2), X, yc),
+        fit(KNeighborsRegressor(n_neighbors=2), X, yr),
         fit(Lasso(lambda=0.1), X, yr),
+        fit(ElasticNet(lambda=0.1, l1_ratio=0.5), X, yr),
         fit(SparseLogisticRegression(lambda=0.1, max_iterations=20), X, yc),
         fit(DecisionTreeClassifier(), X, yc),
+        fit(DecisionTreeRegressor(), X, yr),
+        fit(RandomForestClassifier(n_estimators=2), X, yc),
         fit(RandomForestRegressor(n_estimators=2), X, yr),
+        fit(ExtraTreesClassifier(n_estimators=2), X, yc),
+        fit(ExtraTreesRegressor(n_estimators=2), X, yr),
+        fit(HistGradientBoostingClassifier(n_estimators=2, min_samples_leaf=1), X, yc),
         fit(HistGradientBoostingRegressor(n_estimators=2, min_samples_leaf=1), X, yr),
         fit(IsolationForest(n_estimators=2), X),
         fit(KernelRidgeRegression(), X, yr),
         fit(SupportVectorClassifier(max_iterations=20), X, yc),
         fit(SupportVectorRegressor(max_iterations=20), X, yr),
         fit(MLPClassifier(hidden_units=3, max_iterations=2), X, yc),
+        fit(MLPRegressor(hidden_units=3, max_iterations=2), X, yr),
     )
     for fitted in fitted_models
         _test_structural_roundtrip(fitted, X)
@@ -48,6 +63,22 @@ end
 
     binary = Float64.(X .> 0)
     _test_structural_roundtrip(fit(BernoulliRBM(n_components=2, n_iterations=1), binary), binary)
+
+    selected = fit(Select(1), X)
+    _test_structural_roundtrip(selected, X)
+    parallel = fit(Parallel(Standardize(), PCA(n_components=1)), X)
+    _test_structural_roundtrip(parallel, X)
+    branches = transform(parallel, X)
+    _test_structural_roundtrip(fit(Concatenate(), branches), branches)
+
+    missing_X = Matrix{Union{Missing,Float64}}(X)
+    missing_X[1, 1] = missing
+    _test_structural_roundtrip(fit(Impute(), missing_X), missing_X)
+    table = column_table((value=X[:, 1], group=yc))
+    _test_structural_roundtrip(fit(OneHotEncode(), table), table)
+    mapped = fit(ColumnMap(:value => Standardize(),
+                           :group => OneHotEncode(passthrough_numeric=false)), table)
+    _test_structural_roundtrip(mapped, table)
 
     mktempdir(pwd()) do directory
         fitted = fit(PCA(n_components=1), X)

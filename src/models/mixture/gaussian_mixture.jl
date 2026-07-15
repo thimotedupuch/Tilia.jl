@@ -84,19 +84,19 @@ function _initial_mixture(model, data, rng)
     means, covariances, mixture_weights
 end
 
-function _mixture_run(model, data, rng)
+function _mixture_run(model, data, rng, tolerance, max_iterations)
     means, covariances, mixture_weights = _initial_mixture(model, data, rng)
     T = eltype(data)
     history = T[]
     converged = false
-    iterations = model.max_iterations
+    iterations = max_iterations
     responsibilities = zeros(T, size(data, 1), model.n_components)
-    for iteration in 1:model.max_iterations
+    for iteration in 1:max_iterations
         lower_bound, responsibilities, _, _ = _mixture_expectation(
             data, means, covariances, mixture_weights, T(model.regularization))
         push!(history, lower_bound)
         if length(history) > 1 && abs(history[end] - history[end - 1]) <=
-                T(model.tolerance) * max(abs(history[end - 1]), one(T))
+                tolerance * max(abs(history[end - 1]), one(T))
             converged = true
             iterations = iteration
             break
@@ -126,10 +126,13 @@ function fit(model::GaussianMixture, X::AbstractMatrix; context=default_context(
     n >= model.n_components || throw(UnsupportedDataError(
         "GaussianMixture requires at least n_components observations."))
     data = Matrix{float(eltype(X))}(X)
+    tolerance = eltype(data)(effective_tolerance(context, model.tolerance))
+    max_iterations = effective_max_iterations(context, model.max_iterations)
     best = nothing
     for restart in 1:model.n_init
         restart_context = derive_context(context, :gaussian_mixture, :restart, restart)
-        candidate = _mixture_run(model, data, restart_context.rng)
+        candidate = _mixture_run(model, data, restart_context.rng,
+                                 tolerance, max_iterations)
         (best === nothing || candidate.lower_bound > best.lower_bound) && (best = candidate)
     end
     warnings = best.converged ? String[] :

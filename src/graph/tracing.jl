@@ -25,9 +25,10 @@ function trace(fitted::FittedGraph, input; operation::Symbol=:predict)
     records = NodeTrace[]
     total_started = time_ns()
     for (index, node) in enumerate(fitted.fitted_nodes)
+        semantic_node = fitted.graph.nodes[index]
         input_shape = _shape(value)
         started = time_ns()
-        node_operation = node isa AbstractFittedTransformer ? :transform :
+        node_operation = semantic_node isa TransformNode ? :transform :
                          (operation === :predict_proba ? :predict_proba : :predict)
         value = node_operation === :transform ? transform(node, value) :
                 node_operation === :predict_proba ? predict_proba(node, value) : predict(node, value)

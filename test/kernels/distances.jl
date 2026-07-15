@@ -15,6 +15,19 @@ using Tilia.Kernels
     @test_throws ArgumentError cosine_distance([0.0], [1.0])
 end
 
+@testset "Blocked and threaded pairwise distances" begin
+    X = Float32[sin(i * j) for i in 1:17, j in 1:5]
+    Y = Float32[cos(i + j) for i in 1:9, j in 1:5]
+    expected = Tilia.Kernels.pairwise_distances(X, Y)
+    blocked = Tilia.Kernels.pairwise_distance_blocks(X, Y; block_size=4)
+    threaded = Tilia.Kernels.pairwise_distance_blocks(
+        X, Y; block_size=3, threaded=true)
+    @test blocked ≈ expected
+    @test threaded ≈ expected
+    @test eltype(threaded) == Float32
+    @test_throws ArgumentError Tilia.Kernels.pairwise_distance_blocks(X, Y; block_size=0)
+end
+
 @testset "BLAS-backed Euclidean distance matrix" begin
     left = Float32[1 2; 3 4; -1 0]
     right = Float32[0 1; 2 2]

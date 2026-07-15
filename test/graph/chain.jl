@@ -42,3 +42,20 @@ end
     @test report(fitted).details.weighted
     @test report(last(fitted.fitted_nodes)).details.weighted
 end
+
+@testset "Unsupervised and neighbor graph roles" begin
+    X = Float64[-2 -1; -1 -2; 1 2; 2 1]
+
+    clustering = fit(Chain(Standardize(), KMeans(n_clusters=2, n_init=1)), X)
+    @test size(predict(clustering, X)) == (4,)
+    @test !Tilia.node_contract(clustering.graph.nodes[end]).consumes_target
+
+    neighbors = fit(Chain(NearestNeighbors(n_neighbors=2), Standardize()), X)
+    @test size(transform(neighbors, X)) == (4, 2)
+    traced = Tilia.trace(neighbors, X)
+    @test traced.nodes[1].operation == :transform
+    @test traced.output ≈ transform(neighbors, X)
+
+    anomaly = fit(Chain(Standardize(), IsolationForest(n_estimators=2)), X)
+    @test size(predict(anomaly, X)) == (4,)
+end

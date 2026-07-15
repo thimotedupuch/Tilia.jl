@@ -11,6 +11,7 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
     inference_execution = lower_graph(graph, X; phase=:inference, device=:cpu)
     for numerical_node in fit_execution.nodes
         node = graph.nodes[numerical_node.semantic_node_id]
+        input_value = value
         _record_input!(numerical_node, value)
         node_context = derive_context(context, :graph_node, node.id)
         started = time_ns()
@@ -19,17 +20,33 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
             push!(fitted_nodes, fitted)
             value = transform(fitted, value)
             _record_output!(numerical_node, value)
+            _record_primitive_region!(fit_execution, node.id, input_value, value)
         else
-            y === nothing && throw(UnsupportedDataError("Predictor node $(node.id) requires a target."))
-            fitted = fit(node.model, value, y; weights=weights, context=node_context)
+            if consumes_target(node)
+                y === nothing && throw(UnsupportedDataError(
+                    "Predictor node $(node.id) requires a target."))
+                fitted = fit(node.model, value, y; weights=weights, context=node_context)
+            else
+                fitted = fit(node.model, value; context=node_context)
+            end
             push!(fitted_nodes, fitted)
             numerical_node.output_shape = ()
+            _record_primitive_region!(fit_execution, node.id, input_value, fitted)
         end
         inference_node = inference_execution.nodes[numerical_node.id]
         inference_node.input_shape = numerical_node.input_shape
         inference_node.element_type = numerical_node.element_type
         inference_node.representation = numerical_node.representation
         inference_node.output_shape = node isa TransformNode ? numerical_node.output_shape : (size(X, 1),)
+        _record_primitive_region!(inference_execution, node.id, input_value,
+                                  node isa TransformNode ? value : y)
+        if node isa PredictorNode
+            primitive_indices = findall(primitive -> primitive.semantic_node_id == node.id,
+                                        inference_execution.primitives)
+            isempty(primitive_indices) ||
+                (inference_execution.primitives[last(primitive_indices)].output_shape =
+                    inference_node.output_shape)
+        end
         push!(node_timings, (node_id=node.id, kind=Symbol(nameof(typeof(node.model))),
                              nanoseconds=time_ns() - started))
     end
@@ -38,6 +55,7 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
                        weighted=weights !== nothing,
                        fit_execution_graph=fit_execution,
                        inference_execution_graph=inference_execution,
+                       lowered_primitives=length(fit_execution.primitives),
                        node_timings=node_timings), context=context) |>
         report -> FittedGraph(graph, fitted_nodes, report)
 end
@@ -54,11 +72,14 @@ function _execute_inference_graph(fitted::FittedGraph, X, operation::Symbol)
     value = X
     for numerical_node in execution.nodes
         node = fitted.fitted_nodes[numerical_node.semantic_node_id]
+        input_value = value
         _record_input!(numerical_node, value)
         value = numerical_node.operation === :transform ? transform(node, value) :
                 numerical_node.operation === :predict_proba ? predict_proba(node, value) :
                 predict(node, value)
         _record_output!(numerical_node, value)
+        _record_primitive_region!(execution, numerical_node.semantic_node_id,
+                                  input_value, value)
     end
     (output=value, graph=execution)
 end

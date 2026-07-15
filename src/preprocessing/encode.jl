@@ -46,12 +46,15 @@ function fit(model::OneHotEncode, table::ColumnTable; context=default_context())
             names = [Symbol(name, "__", string(level)) for level in levels]
             push!(specs, OneHotColumnSpec(name, :categorical, levels, names))
             append!(output_schema_columns,
-                [ColumnSchema(output_name, :continuous, model.output_type, false, :feature)
+                [ColumnSchema(output_name, :continuous, model.output_type, false, :feature;
+                              provenance=[name], generated_name=output_name)
                  for output_name in names])
         elseif model.passthrough_numeric
             push!(specs, OneHotColumnSpec(name, :continuous, Any[], [name]))
             push!(output_schema_columns,
-                  ColumnSchema(name, :continuous, model.output_type, false, :feature))
+                  ColumnSchema(name, :continuous, model.output_type, false, :feature;
+                               provenance=metadata.provenance,
+                               generated_name=metadata.generated_name))
         else
             push!(specs, OneHotColumnSpec(name, :ignored, Any[], Symbol[]))
         end

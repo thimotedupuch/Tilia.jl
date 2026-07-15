@@ -43,7 +43,8 @@ function _sparse_logistic_objective(X, target, weights, coefficients, intercept,
         l2_penalty * sum(abs2, coefficients) / 2
 end
 
-function _fit_sparse_logistic_binary(model, X, target, weights, T)
+function _fit_sparse_logistic_binary(model, X, target, weights, T,
+                                     tolerance, max_iterations)
     coefficients = zeros(T, size(X, 2))
     positive_rate = clamp(sum(weights .* target) / sum(weights), eps(T), one(T) - eps(T))
     intercept = model.fit_intercept ? log(positive_rate / (one(T) - positive_rate)) : zero(T)
@@ -55,9 +56,9 @@ function _fit_sparse_logistic_binary(model, X, target, weights, T)
     step = inv(max(lipschitz, eps(T)))
     history = T[]
     converged = false
-    iterations = model.max_iterations
+    iterations = max_iterations
     maximum_update = T(Inf)
-    for iteration in 1:model.max_iterations
+    for iteration in 1:max_iterations
         probabilities = Kernels.sigmoid(X * coefficients .+ intercept)
         residual = weights .* (probabilities .- target) ./ sum(weights)
         gradient = transpose(X) * residual .+ l2_penalty .* coefficients
@@ -71,7 +72,7 @@ function _fit_sparse_logistic_binary(model, X, target, weights, T)
         intercept = new_intercept
         push!(history, _sparse_logistic_objective(X, target, weights, coefficients,
                                                   intercept, l1_penalty, l2_penalty))
-        if maximum_update <= T(model.tolerance)
+        if maximum_update <= tolerance
             converged = true
             iterations = iteration
             break
@@ -102,8 +103,11 @@ function fit(model::SparseLogisticRegression, X::AbstractMatrix, y::AbstractVect
     trained_classes = length(classes) == 2 ? classes[end:end] : classes
     coefficients = Matrix{T}(undef, size(X, 2), length(trained_classes))
     intercepts = Vector{T}(undef, length(trained_classes))
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    max_iterations = effective_max_iterations(context, model.max_iterations)
     results = map(trained_classes) do class
-        _fit_sparse_logistic_binary(model, data, T.(y .== class), observation_weights, T)
+        _fit_sparse_logistic_binary(model, data, T.(y .== class), observation_weights,
+                                    T, tolerance, max_iterations)
     end
     for index in eachindex(results)
         coefficients[:, index] .= results[index].coefficients
@@ -119,8 +123,7 @@ function fit(model::SparseLogisticRegression, X::AbstractMatrix, y::AbstractVect
         nonzero_coefficients=count(coefficient -> !iszero(coefficient), coefficients),
         l1_penalty=first(results).l1_penalty, l2_penalty=first(results).l2_penalty,
         class_order=copy(classes), strategy=:one_vs_rest)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedSparseLogisticRegression(model, coefficients, intercepts, classes,
         FitReport(status=all(converged) ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,

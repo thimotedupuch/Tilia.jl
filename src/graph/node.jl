@@ -14,12 +14,12 @@ struct NodeContract
     backend_compatibility::Tuple{Vararg{Symbol}}
 end
 
-struct TransformNode{M<:AbstractTransformer} <: AbstractGraphNode
+struct TransformNode{M<:AbstractEstimator} <: AbstractGraphNode
     id::Int
     model::M
 end
 
-struct PredictorNode{M<:AbstractPredictor} <: AbstractGraphNode
+struct PredictorNode{M<:AbstractEstimator} <: AbstractGraphNode
     id::Int
     model::M
 end
@@ -52,7 +52,8 @@ end
 
 learns_state(::AbstractGraphNode) = true
 consumes_target(::TransformNode) = false
-consumes_target(::PredictorNode) = true
+consumes_target(node::PredictorNode) =
+    capabilities(node.model).task in (:classification, :regression)
 valid_at_inference(::AbstractGraphNode) = true
 learns_state(::ConversionNode) = false
 consumes_target(::ConversionNode) = false

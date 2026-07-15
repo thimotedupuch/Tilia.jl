@@ -93,6 +93,18 @@
     @test fit_execution.nodes[1].element_type == Float64
     @test fit_execution.nodes[1].representation == :dense
     @test fit_execution.peak_buffers == Tilia.execution_plan(fitted.graph).peak_buffers
+    @test [primitive.operation for primitive in fit_execution.primitives] == [
+        :reduce_mean, :center, :reduce_variance, :normalize,
+        :reduce_mean, :center, :reduce_variance, :normalize,
+        :center, :qr_factorization, :triangular_solve,
+    ]
+    @test [primitive.operation for primitive in inference_execution.primitives] == [
+        :normalize, :normalize, :matmul, :add,
+    ]
+    @test length(fit_execution.primitive_edges) == length(fit_execution.primitives) - 1
+    @test all(primitive -> primitive.device == :cpu, fit_execution.primitives)
+    @test all(primitive -> !isempty(primitive.input_shape), fit_execution.primitives)
+    @test report(fitted).details.lowered_primitives == length(fit_execution.primitives)
 
     execution = Tilia.trace(optimized, X)
     @test execution.output ≈ predict(optimized, X)

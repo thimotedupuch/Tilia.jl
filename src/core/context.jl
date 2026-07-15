@@ -20,12 +20,75 @@ end
 CompilationCache() = CompilationCache(Dict{UInt64,Any}(), ReentrantLock())
 
 """Numerical defaults shared by all estimators."""
-struct NumericsPolicy{T<:AbstractFloat}
+struct NumericsPolicy{T<:AbstractFloat,A<:AbstractFloat}
     float_type::Type{T}
+    accumulation_type::Type{A}
     tolerance::T
+    tolerance_scale::T
+    max_iterations::Int
+    stable_summation::Bool
+    missing_policy::Symbol
+    finite_policy::Symbol
+    overflow_policy::Symbol
+    underflow_policy::Symbol
+    deterministic_reductions::Bool
+    sparse_centering::Symbol
 end
-NumericsPolicy(::Type{T}=Float64; tolerance=sqrt(eps(T))) where {T<:AbstractFloat} =
-    NumericsPolicy{T}(T, T(tolerance))
+
+function NumericsPolicy(::Type{T}=Float64; accumulation_type::Type{A}=T,
+                        tolerance=sqrt(eps(T)), tolerance_scale=one(T),
+                        max_iterations::Integer=1_000,
+                        stable_summation::Bool=true,
+                        missing_policy::Symbol=:error,
+                        finite_policy::Symbol=:error,
+                        overflow_policy::Symbol=:error,
+                        underflow_policy::Symbol=:allow,
+                        deterministic_reductions::Bool=true,
+                        sparse_centering::Symbol=:error) where
+                        {T<:AbstractFloat,A<:AbstractFloat}
+    isfinite(tolerance) && tolerance > 0 || throw(InvalidHyperparameterError(
+        "NumericsPolicy tolerance must be finite and positive."))
+    isfinite(tolerance_scale) && tolerance_scale > 0 || throw(InvalidHyperparameterError(
+        "NumericsPolicy tolerance_scale must be finite and positive."))
+    max_iterations > 0 || throw(InvalidHyperparameterError(
+        "NumericsPolicy max_iterations must be positive."))
+    missing_policy in (:error, :allow) || throw(InvalidHyperparameterError(
+        "NumericsPolicy missing_policy must be :error or :allow."))
+    finite_policy in (:error, :allow) || throw(InvalidHyperparameterError(
+        "NumericsPolicy finite_policy must be :error or :allow."))
+    overflow_policy in (:error, :saturate) || throw(InvalidHyperparameterError(
+        "NumericsPolicy overflow_policy must be :error or :saturate."))
+    underflow_policy in (:allow, :flush_zero, :error) || throw(InvalidHyperparameterError(
+        "NumericsPolicy underflow_policy must be :allow, :flush_zero, or :error."))
+    sparse_centering in (:error, :densify) || throw(InvalidHyperparameterError(
+        "NumericsPolicy sparse_centering must be :error or :densify."))
+    NumericsPolicy{T,A}(T, A, T(tolerance), T(tolerance_scale),
+        Int(max_iterations), stable_summation, missing_policy, finite_policy,
+        overflow_policy, underflow_policy, deterministic_reductions, sparse_centering)
+end
+
+numerics_summary(policy::NumericsPolicy) = (
+    float_type=string(policy.float_type),
+    accumulation_type=string(policy.accumulation_type),
+    tolerance=policy.tolerance,
+    tolerance_scale=policy.tolerance_scale,
+    max_iterations=policy.max_iterations,
+    stable_summation=policy.stable_summation,
+    missing_policy=policy.missing_policy,
+    finite_policy=policy.finite_policy,
+    overflow_policy=policy.overflow_policy,
+    underflow_policy=policy.underflow_policy,
+    deterministic_reductions=policy.deterministic_reductions,
+    sparse_centering=policy.sparse_centering,
+)
+
+"""Scale an estimator tolerance according to the active numerical policy."""
+effective_tolerance(context, requested=context.numerics.tolerance) =
+    requested * context.numerics.tolerance_scale
+
+"""Apply the active numerical policy's hard iteration ceiling."""
+effective_max_iterations(context, requested::Integer=context.numerics.max_iterations) =
+    min(Int(requested), context.numerics.max_iterations)
 
 """Execution configuration supplied to `fit`."""
 struct FitContext{B<:AbstractBackend,R<:AbstractRNG,N<:NumericsPolicy,C<:CompilationCache}

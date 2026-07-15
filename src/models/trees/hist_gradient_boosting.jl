@@ -109,7 +109,9 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
     trees = FittedDecisionTree[]
     history = T[]
     converged = false
-    for iteration in 1:model.n_estimators
+    max_iterations = effective_max_iterations(context, model.n_estimators)
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    for iteration in 1:max_iterations
         residual = target .- predictions
         tree_context = derive_context(context, :hist_gradient_boosting,
                                       :iteration, iteration, :class, 1)
@@ -120,7 +122,7 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
         predictions .+= T(model.learning_rate) .* predict(tree, binned)
         loss = sum(observation_weights .* abs2.(target .- predictions)) / sum(observation_weights)
         push!(history, loss)
-        if length(history) > 1 && abs(history[end] - history[end - 1]) <= T(model.tolerance)
+        if length(history) > 1 && abs(history[end] - history[end - 1]) <= tolerance
             converged = true
             break
         end
@@ -130,7 +132,7 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
                bins_per_feature=length.(edges), loss=:squared_error)
     FittedHistGradientBoosting(model, edges, trees, T[initial], nothing,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
-                  details=details, context=context), infer_schema(X))
+                  details=details, context=context), with_target(infer_schema(X), y))
 end
 
 function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::AbstractVector;
@@ -161,7 +163,9 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
     trees = [FittedDecisionTree[] for _ in eachindex(trained_classes)]
     history = T[]
     converged = false
-    for iteration in 1:model.n_estimators
+    max_iterations = effective_max_iterations(context, model.n_estimators)
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    for iteration in 1:max_iterations
         for column in eachindex(trained_classes)
             residual = view(targets, :, column) .- Kernels.sigmoid(view(logits, :, column))
             tree_context = derive_context(context, :hist_gradient_boosting,
@@ -182,7 +186,7 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
         end
         loss /= length(trained_classes)
         push!(history, loss)
-        if length(history) > 1 && abs(history[end] - history[end - 1]) <= T(model.tolerance)
+        if length(history) > 1 && abs(history[end] - history[end - 1]) <= tolerance
             converged = true
             break
         end
@@ -191,8 +195,7 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
                objective_history=history, max_bins=model.max_bins,
                bins_per_feature=length.(edges), loss=:log_loss,
                class_order=copy(classes), strategy=:one_vs_rest)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedHistGradientBoosting(model, edges, trees, initial, classes,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
                   details=details, context=context), schema)

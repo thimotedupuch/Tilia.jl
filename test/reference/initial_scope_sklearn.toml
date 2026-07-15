@@ -1,0 +1,45 @@
+[source]
+package = "scikit-learn"
+version = "1.9.0"
+generator = "test/reference/generate_sklearn_initial_scope.py"
+
+[tolerance]
+absolute = 0.0001
+relative = 0.0001
+
+[input]
+X = [[-3.0, -1.0, 0.0], [-2.5, -0.5, 1.0], [-2.0, -1.5, 0.5], [-1.0, -0.5, 1.5], [-0.5, -1.0, 2.0], [0.5, 1.0, -1.0], [1.0, 0.5, -1.5], [2.0, 1.5, -0.5], [2.5, 0.5, -1.0], [3.0, 1.0, -2.0]]
+y_reg = [-3.45, -2.6750000000000003, -1.375, -0.22499999999999992, 1.1, -0.10000000000000003, 0.825, 1.975, 3.275, 3.25]
+y_class = ["negative", "negative", "negative", "negative", "negative", "positive", "positive", "positive", "positive", "positive"]
+query = [[-2.25, -0.75, 0.5], [0.0, 0.0, 0.0], [2.25, 1.0, -1.0]]
+
+[linear_regression]
+coefficients = [1.5000000000000002, -0.7500000000000001, 0.40000000000000063]
+intercept = 0.30000000000000004
+prediction = [-2.3125, 0.30000000000000004, 2.5249999999999995]
+
+[ridge]
+coefficients = [1.3255369303300155, -0.43640649554740696, 0.3626767941330536]
+intercept = 0.29626767941330534
+prediction = [-2.1775471451021473, 0.29626767941330534, 2.47964248297538]
+
+[lasso]
+coefficients = [1.3841412074635164, -0.5273334134089749, 0.3670736106874694]
+intercept = 0.29670736106874696
+prediction = [-2.238573490323699, 0.29670736106874696, 2.5166180537652147]
+
+[logistic]
+prediction = ["negative", "positive", "positive"]
+
+[neighbors]
+distances = [[0.6123724356957945, 0.7905694150420949, 0.9354143466934853], [1.5, 1.8708286933869707, 1.8708286933869707], [0.5590169943749475, 0.75, 1.25]]
+indices_zero_based = [[1, 2, 0], [5, 3, 6], [8, 7, 9]]
+
+[decision_tree]
+prediction = ["negative", "negative", "positive"]
+
+[kernel_ridge]
+prediction = [-2.5132651347872756, -0.12582044807670095, 2.8686465011068205]
+
+[support_vector]
+prediction = ["negative", "positive", "positive"]

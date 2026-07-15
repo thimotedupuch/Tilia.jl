@@ -55,7 +55,7 @@ function fit(model::KernelRidgeRegression, X::AbstractMatrix, y::AbstractVector;
                residual_norm=residual_norm)
     FittedKernelRidge(model, data, coefficients,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
-                  details=details, context=context), infer_schema(X))
+                  details=details, context=context), with_target(infer_schema(X), y))
 end
 
 function predict(fitted::FittedKernelRidge, X::AbstractMatrix)

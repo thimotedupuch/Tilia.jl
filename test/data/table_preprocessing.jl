@@ -13,6 +13,11 @@
     @test table.schema.columns[1].logical_type == :continuous
     @test table.schema.columns[1].allows_missing
     @test table.schema.columns[2].logical_type == :categorical
+    @test table.schema.columns[2].levels == ["Lyon", "Paris"]
+    @test !table.schema.columns[2].ordered
+    @test table.schema.columns[2].unknown_policy == :error
+    @test table.schema.columns[2].missing_policy == :allow
+    @test table.schema.columns[2].code_type <: Integer
     @test isequal(Tables.columntable(table).age, age)
 
     imputer = fit(Impute(), table)
@@ -31,6 +36,8 @@
     @test encoded[:, 2:3] == Float32[0 1; 1 0; 0 1; 0 1]
     @test [column.name for column in encoder.schema.columns] ==
           [:age, :city__Lyon, :city__Paris]
+    @test encoder.schema.columns[2].provenance == [:city]
+    @test encoder.schema.columns[2].generated_name == :city__Lyon
 
     unknown = (age=[30.0], city=["Marseille"])
     @test_throws Tilia.SchemaMismatchError transform(encoder, unknown)

@@ -18,8 +18,18 @@ function column_table(source)
     for (name, raw_column, column) in zip(names, raw_columns, columns)
         T = eltype(raw_column)
         logical_type = column isa CategoricalColumn ? :categorical : :continuous
-        push!(schema_columns, ColumnSchema(name, logical_type, Base.nonmissingtype(T),
-                                           Missing <: T || any(ismissing, raw_column), :feature))
+        allows_missing = Missing <: T || any(ismissing, raw_column)
+        if column isa CategoricalColumn
+            push!(schema_columns, ColumnSchema(name, logical_type, Base.nonmissingtype(T),
+                allows_missing, :feature; levels=column.pool, ordered=column.ordered,
+                unknown_policy=column.unknown_policy,
+                missing_policy=allows_missing ? :allow : :forbid,
+                code_type=eltype(column.codes)))
+        else
+            push!(schema_columns, ColumnSchema(name, logical_type, Base.nonmissingtype(T),
+                allows_missing, :feature;
+                missing_policy=allows_missing ? :allow : :forbid))
+        end
     end
     ColumnTable(names, columns, Schema(schema_columns))
 end

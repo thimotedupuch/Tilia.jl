@@ -66,9 +66,23 @@ function _encode_schema(schema::Schema)
                            "logical_type" => string(column.logical_type),
                            "physical_type" => string(column.physical_type),
                            "allows_missing" => column.allows_missing,
-                           "role" => string(column.role)) for column in schema.columns],
+                           "role" => string(column.role),
+                           "levels" => [_encode_value(level) for level in column.levels],
+                           "ordered" => column.ordered,
+                           "unknown_policy" => string(column.unknown_policy),
+                           "missing_policy" => string(column.missing_policy),
+                           "code_type" => string(column.code_type),
+                           "provenance" => string.(column.provenance),
+                           "generated_name" => column.generated_name === nothing ? "" :
+                                               string(column.generated_name))
+                      for column in schema.columns],
         "target_name" => schema.target_name === nothing ? "" : string(schema.target_name),
         "class_order" => [_encode_value(value) for value in schema.class_order],
+        "target_logical_type" => schema.target_logical_type === nothing ? "" :
+                                 string(schema.target_logical_type),
+        "target_physical_type" => schema.target_physical_type === nothing ? "" :
+                                  string(schema.target_physical_type),
+        "target_allows_missing" => schema.target_allows_missing,
     )
 end
 
@@ -82,11 +96,25 @@ end
 
 function _decode_schema(data)
     columns = [ColumnSchema(Symbol(column["name"]), Symbol(column["logical_type"]),
-                            _physical_type(column["physical_type"]), column["allows_missing"],
-                            Symbol(column["role"])) for column in data["columns"]]
+        _physical_type(column["physical_type"]), column["allows_missing"],
+        Symbol(column["role"]);
+        levels=Any[_decode_value(level) for level in get(column, "levels", Any[])],
+        ordered=get(column, "ordered", false),
+        unknown_policy=Symbol(get(column, "unknown_policy", "error")),
+        missing_policy=Symbol(get(column, "missing_policy",
+            column["allows_missing"] ? "allow" : "forbid")),
+        code_type=_physical_type(get(column, "code_type", "Int64")),
+        provenance=Symbol.(get(column, "provenance", [column["name"]])),
+        generated_name=isempty(get(column, "generated_name", "")) ? nothing :
+                       Symbol(column["generated_name"])) for column in data["columns"]]
     target_name = isempty(data["target_name"]) ? nothing : Symbol(data["target_name"])
+    target_logical = get(data, "target_logical_type", "")
+    target_physical = get(data, "target_physical_type", "")
     Schema(columns; target_name=target_name,
-           class_order=Any[_decode_value(value) for value in data["class_order"]])
+        class_order=Any[_decode_value(value) for value in data["class_order"]],
+        target_logical_type=isempty(target_logical) ? nothing : Symbol(target_logical),
+        target_physical_type=isempty(target_physical) ? nothing : _physical_type(target_physical),
+        target_allows_missing=get(data, "target_allows_missing", false))
 end
 
 _host_endianness() = Base.ENDIAN_BOM == 0x04030201 ? "little" : "big"
@@ -262,7 +290,10 @@ function _decode_structural(data, directory)
     if type_wrapper === Schema
         named = Dict(zip(fields, values))
         return Schema(named[:columns]; target_name=named[:target_name],
-                      class_order=named[:class_order])
+                      class_order=named[:class_order],
+                      target_logical_type=get(named, :target_logical_type, nothing),
+                      target_physical_type=get(named, :target_physical_type, nothing),
+                      target_allows_missing=get(named, :target_allows_missing, false))
     end
     type_wrapper === SemanticGraph && return SemanticGraph(
         AbstractGraphNode[values[1]...], Tuple{Int,Int}[values[2]...])

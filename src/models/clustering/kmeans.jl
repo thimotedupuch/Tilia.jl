@@ -67,13 +67,13 @@ function _initial_centers(model, X, rng)
     copy(X[indices, :])
 end
 
-function _kmeans_run(model, X, rng)
+function _kmeans_run(model, X, rng, tolerance, max_iterations)
     centers = _initial_centers(model, X, rng)
     labels = ones(Int, size(X, 1))
     converged = false
-    iterations = model.max_iterations
+    iterations = max_iterations
     objective_history = eltype(X)[]
-    for iteration in 1:model.max_iterations
+    for iteration in 1:max_iterations
         distances = _squared_distance_matrix(X, centers)
         labels .= map(row -> argmin(view(distances, row, :)), axes(X, 1))
         new_centers = similar(centers)
@@ -92,7 +92,7 @@ function _kmeans_run(model, X, rng)
         updated_distances = _squared_distance_matrix(X, centers)
         push!(objective_history,
             sum(updated_distances[row, labels[row]] for row in axes(X, 1)))
-        if shift <= model.tolerance^2
+        if shift <= tolerance^2
             converged = true
             iterations = iteration
             break
@@ -114,10 +114,13 @@ function fit(model::KMeans, X::AbstractMatrix; context=default_context())
         "KMeans requires at least n_clusters observations; received $n for $(model.n_clusters) clusters."))
     T = float(eltype(X))
     data = Matrix{T}(X)
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    max_iterations = effective_max_iterations(context, model.max_iterations)
     best = nothing
     for restart in 1:model.n_init
         restart_context = derive_context(context, :kmeans, :restart, restart)
-        candidate = _kmeans_run(model, data, restart_context.rng)
+        candidate = _kmeans_run(model, data, restart_context.rng,
+                                tolerance, max_iterations)
         (best === nothing || candidate.inertia < best.inertia) && (best = candidate)
     end
     warnings = best.converged ? String[] : ["KMeans reached max_iterations without convergence."]

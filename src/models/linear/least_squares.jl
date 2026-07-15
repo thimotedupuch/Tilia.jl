@@ -101,10 +101,10 @@ function _fit_linear(model, X, y, weights, context)
         _center_regression(X, y, weights, model.fit_intercept)
     result = if model isa LinearRegression
         Solvers.least_squares(design, target; solver=model.solver,
-                              tolerance=context.numerics.tolerance)
+                              tolerance=effective_tolerance(context))
     else
         Solvers.ridge_least_squares(design, target, eltype(design)(model.lambda); solver=model.solver,
-                                    tolerance=context.numerics.tolerance)
+                                    tolerance=effective_tolerance(context))
     end
     intercept = target_mean - dot(feature_means, result.coefficients)
     details = (solver=result.solver, numerical_rank=result.rank,
@@ -113,7 +113,8 @@ function _fit_linear(model, X, y, weights, context)
                weighted=weights !== nothing, fit_intercept=model.fit_intercept)
     fit_report = FitReport(observations=size(X, 1), features=size(X, 2),
                            backend=:cpu, details=details, context=context)
-    FittedLinearRegressor(model, result.coefficients, intercept, fit_report, infer_schema(X))
+    FittedLinearRegressor(model, result.coefficients, intercept, fit_report,
+                          with_target(infer_schema(X), y))
 end
 
 fit(model::Union{LinearRegression,RidgeRegression}, X::AbstractMatrix, y::AbstractVector;

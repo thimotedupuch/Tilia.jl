@@ -89,8 +89,10 @@ function _fit_mlp(model, X, targets, classes, weights, context)
     activation = Val(model.activation)
     history = T[]
     converged = false
-    iterations = model.max_iterations
-    for iteration in 1:model.max_iterations
+    max_iterations = effective_max_iterations(context, model.max_iterations)
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    iterations = max_iterations
+    for iteration in 1:max_iterations
         hidden_linear = data * input_weights .+ transpose(hidden_bias)
         hidden = _mlp_activation(hidden_linear, activation)
         outputs = hidden * output_weights .+ transpose(output_bias)
@@ -118,7 +120,7 @@ function _fit_mlp(model, X, targets, classes, weights, context)
         hidden_bias .-= T(model.learning_rate) .* hidden_bias_gradient
         output_weights .-= T(model.learning_rate) .* output_gradient
         output_bias .-= T(model.learning_rate) .* output_bias_gradient
-        if length(history) > 1 && abs(history[end] - history[end - 1]) <= T(model.tolerance)
+        if length(history) > 1 && abs(history[end] - history[end - 1]) <= tolerance
             converged = true
             iterations = iteration
             break
@@ -128,7 +130,8 @@ function _fit_mlp(model, X, targets, classes, weights, context)
                hidden_units=model.hidden_units, iterations=iterations,
                converged=converged, objective_history=history, l2=model.l2)
     schema = infer_schema(X)
-    classes === nothing || (schema = Schema(schema.columns; class_order=Any[classes...]))
+    schema = classes === nothing ? with_target(schema, vec(targets)) :
+             with_class_target(schema, classes)
     FittedMLP(model, input_weights, hidden_bias, output_weights, output_bias, classes,
         FitReport(status=converged ? :success : :max_iterations,
             observations=n, features=p, backend=:cpu,

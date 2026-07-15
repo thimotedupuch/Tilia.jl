@@ -86,7 +86,8 @@ function fit(model::LogisticRegression, X::AbstractMatrix, y::AbstractVector;
         result = try
             Solvers.binary_logistic_newton(design, binary_target;
                 weights=observation_weights, lambda=T(model.lambda), penalty_mask=penalty_mask,
-                max_iterations=model.max_iterations, tolerance=T(model.tolerance))
+                max_iterations=effective_max_iterations(context, model.max_iterations),
+                tolerance=T(effective_tolerance(context, model.tolerance)))
         catch error
             error isa SingularException || rethrow()
             throw(NumericalFailureError(
@@ -107,8 +108,7 @@ function fit(model::LogisticRegression, X::AbstractMatrix, y::AbstractVector;
     fit_report = FitReport(status=all(converged) ? :success : :max_iterations,
         observations=size(X, 1), features=size(X, 2), backend=:cpu,
         warnings=warnings, details=details, context=context)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedLogisticRegression(model, coefficients, intercepts, classes, fit_report, schema)
 end
 

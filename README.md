@@ -95,12 +95,14 @@ traces. Their isolated test environments live in `test/differentiation` and
 ## Benchmarks and documentation
 
 The persistent benchmark environment is `benchmark/`. It uses the local Tilia
-checkout and keeps kernel and model benchmarks separate:
+checkout and separates compilation, kernels, training, inference, memory,
+graph optimization, CPU scaling, sparse, and preprocessing measurements:
 
 ```sh
 julia --project=benchmark -e 'using Pkg; Pkg.instantiate()'
-julia --project=benchmark benchmark/kernels/runbenchmarks.jl
-julia --project=benchmark benchmark/models/runbenchmarks.jl
+julia --project=benchmark benchmark/runbenchmarks.jl
+JULIA_NUM_PRECOMPILE_TASKS=1 julia --project=test/accelerator \
+  benchmark/accelerator/runbenchmarks.jl
 ```
 
 Workflow-oriented documentation starts at `docs/src/index.md` and covers data,

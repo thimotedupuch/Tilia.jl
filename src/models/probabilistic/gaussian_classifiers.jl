@@ -99,8 +99,7 @@ function fit(model::GaussianNaiveBayes, X::AbstractMatrix, y::AbstractVector;
     priors = class_weights ./ sum(class_weights)
     details = (class_order=copy(classes), class_counts=class_weights,
                variance_smoothing=epsilon)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedGaussianNaiveBayes(model, means, variances, priors, classes,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
                   details=details, context=context), schema)
@@ -150,8 +149,7 @@ function fit(model::Union{LinearDiscriminantAnalysis,QuadraticDiscriminantAnalys
     details = (class_order=copy(classes), class_counts=class_weights,
                covariance=model isa LinearDiscriminantAnalysis ? :shared : :class_specific,
                regularization=model.regularization)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedDiscriminantAnalysis(model, means, precisions, log_determinants, priors,
         classes, FitReport(observations=size(X, 1), features=size(X, 2),
         backend=:cpu, details=details, context=context), schema)

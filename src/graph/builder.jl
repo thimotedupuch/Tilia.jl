@@ -38,9 +38,9 @@ capabilities(chain::Chain) = capabilities(last(chain.steps))
 function build_graph(chain::Chain)
     nodes = AbstractGraphNode[]
     for (id, step) in enumerate(chain.steps)
-        node = step isa AbstractTransformer ? TransformNode(id, step) :
-               step isa AbstractPredictor ? PredictorNode(id, step) :
-               throw(GraphValidationError("Chain step $id ($(typeof(step))) is neither a transformer nor predictor."))
+        task = capabilities(step).task
+        node = step isa AbstractTransformer || task in (:transformation, :neighbors) ?
+               TransformNode(id, step) : PredictorNode(id, step)
         push!(nodes, node)
     end
     SemanticGraph(nodes, [(i, i + 1) for i in 1:length(nodes)-1])

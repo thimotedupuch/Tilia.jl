@@ -13,6 +13,12 @@ function logsumexp(values::AbstractArray; dims=:)
     map!((r, m) -> isinf(m) ? m : r, result, result, maximum_values)
 end
 
+"""Clamp scalar or array values to the closed interval `[lower, upper]`."""
+function clip_values(values, lower, upper)
+    lower <= upper || throw(ArgumentError("clip lower bound must not exceed upper bound."))
+    values isa AbstractArray ? clamp.(values, lower, upper) : clamp(values, lower, upper)
+end
+
 """Apply a numerically stable softmax along `dims` (rows by default)."""
 function softmax(values::AbstractArray; dims=ndims(values))
     maximum_values = maximum(values; dims=dims)

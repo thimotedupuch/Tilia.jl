@@ -83,7 +83,8 @@ function _fit_forest(model, X, target, classes, weights, context)
                mean_nodes=mean(length(tree.nodes) for tree in trees),
                feature_importances=copy(importances))
     schema = infer_schema(X)
-    classes === nothing || (schema = Schema(schema.columns; class_order=Any[classes...]))
+    schema = classes === nothing ? with_target(schema, target) :
+             with_class_target(schema, classes)
     FittedForest(model, trees, classes, importances,
         FitReport(observations=n, features=p, backend=:cpu, details=details,
                   context=context), schema)

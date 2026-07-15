@@ -100,12 +100,31 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                 @test report(first_fit).stream_id == "root"
                 @test report(first_fit).deterministic
                 @test report(first_fit).thread_count == Threads.nthreads()
+                @test hasproperty(report(first_fit).details, :numerical_policy)
+                @test report(first_fit).details.numerical_policy.float_type == "Float64"
+                if declared.task in (:classification, :regression)
+                    @test first_fit.schema.target_name == :target
+                    @test first_fit.schema.target_logical_type ==
+                          (declared.task === :classification ? :categorical : :continuous)
+                    @test first_fit.schema.target_physical_type ==
+                          (declared.task === :classification ? Symbol : T)
+                    @test !first_fit.schema.target_allows_missing
+                end
 
                 if declared.task === :classification && declared.probabilistic
                     probabilities = predict_proba(first_fit, X)
                     @test size(probabilities, 1) == size(X, 1)
                     @test eltype(probabilities) == T
                     @test vec(sum(probabilities; dims=2)) ≈ ones(T, size(X, 1)) rtol=1e-4
+                end
+                if declared.task === :classification
+                    @test hasproperty(first_fit, :classes)
+                    @test first_fit.classes == sort(unique(yclass))
+                end
+                if declared.sparse
+                    sparse_fit = _conformance_fit(case.make(T), sparse(X), yreg, yclass)
+                    sparse_output = _conformance_output(sparse_fit, sparse(X))
+                    @test _outputs_match(first_output, sparse_output)
                 end
                 if declared.task in (:classification, :regression)
                     bad_target = declared.task === :classification ? yclass[1:end-1] : yreg[1:end-1]
@@ -128,6 +147,33 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                         @test transform(online, X) ≈ transform(first_fit, X) rtol=1e-4
                     end
                 end
+
+                graph_model = declared.task in (:transformation, :neighbors) ?
+                    Chain(case.make(T), Standardize()) :
+                    Chain(Standardize(), case.make(T))
+                graph_fit = if declared.task === :regression
+                    fit(graph_model, X, yreg)
+                elseif declared.task === :classification
+                    fit(graph_model, X, yclass)
+                else
+                    fit(graph_model, X)
+                end
+                repeated_graph_fit = if declared.task === :regression
+                    fit(Chain(Standardize(), case.make(T)), X, yreg)
+                elseif declared.task === :classification
+                    fit(Chain(Standardize(), case.make(T)), X, yclass)
+                else
+                    repeated_model = declared.task in (:transformation, :neighbors) ?
+                        Chain(case.make(T), Standardize()) :
+                        Chain(Standardize(), case.make(T))
+                    fit(repeated_model, X)
+                end
+                graph_output = declared.task in (:transformation, :neighbors) ?
+                    transform(graph_fit, X) : predict(graph_fit, X)
+                repeated_graph_output = declared.task in (:transformation, :neighbors) ?
+                    transform(repeated_graph_fit, X) : predict(repeated_graph_fit, X)
+                @test size(graph_output, 1) == size(X, 1)
+                @test _outputs_match(graph_output, repeated_graph_output)
             end
         end
     end

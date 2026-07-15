@@ -12,18 +12,24 @@ struct FitReport
     thread_count::Int
 end
 
-FitReport(; status=:success, observations=0, features=0, backend=:cpu,
-          warnings=String[], details=(;), context=nothing,
-          root_seed=nothing, stream_id=nothing, deterministic=nothing,
-          thread_count=nothing) =
-    FitReport(status, observations, features, backend, warnings, details,
-              root_seed === nothing ?
-                  (context === nothing ? UInt64(0) : context.root_seed) : UInt64(root_seed),
-              stream_id === nothing ?
-                  (context === nothing ? "unknown" : context.stream_id) : String(stream_id),
-              deterministic === nothing ?
-                  (context === nothing ? true : context.deterministic) : Bool(deterministic),
-              thread_count === nothing ? Threads.nthreads() : Int(thread_count))
+function FitReport(; status=:success, observations=0, features=0, backend=:cpu,
+                   warnings=String[], details=(;), context=nothing,
+                   root_seed=nothing, stream_id=nothing, deterministic=nothing,
+                   thread_count=nothing)
+    enriched_details = if context === nothing || hasproperty(details, :numerical_policy)
+        details
+    else
+        merge(details, (numerical_policy=numerics_summary(context.numerics),))
+    end
+    FitReport(status, observations, features, backend, warnings, enriched_details,
+        root_seed === nothing ?
+            (context === nothing ? UInt64(0) : context.root_seed) : UInt64(root_seed),
+        stream_id === nothing ?
+            (context === nothing ? "unknown" : context.stream_id) : String(stream_id),
+        deterministic === nothing ?
+            (context === nothing ? true : context.deterministic) : Bool(deterministic),
+        thread_count === nothing ? Threads.nthreads() : Int(thread_count))
+end
 
 # Positional compatibility for version-1 structural persistence payloads.
 FitReport(status::Symbol, observations::Int, features::Int, backend::Symbol,

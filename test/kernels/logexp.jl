@@ -20,3 +20,9 @@ using Tilia.Kernels
     @test normalized[2, :] == [0.0, 0.0]
     @test vec(sum(normalize_rows([1.0 3.0; 2.0 2.0]; norm=:l1); dims=2)) ≈ ones(2)
 end
+
+@testset "Clipping kernel" begin
+    @test clip_values([-2.0, 0, 3], -1, 1) == [-1, 0, 1]
+    @test clip_values(2.0, -1, 1) == 1.0
+    @test_throws ArgumentError clip_values([1.0], 2, 1)
+end

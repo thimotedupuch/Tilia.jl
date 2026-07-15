@@ -21,20 +21,27 @@ function fit(model::MeanRegressor, X::AbstractMatrix, y::AbstractVector;
     length(y) == n || throw(SchemaMismatchError(
         "MeanRegressor target has length $(length(y)); expected $n observations."))
     n > 0 || throw(UnsupportedDataError("MeanRegressor requires at least one observation."))
-    all(isfinite, y) || throw(UnsupportedDataError("MeanRegressor target must contain only finite values."))
+    context.numerics.finite_policy === :error && !all(isfinite, y) &&
+        throw(UnsupportedDataError("MeanRegressor target must contain only finite values."))
+    A = context.numerics.accumulation_type
+    T = eltype(y) <: AbstractFloat ? eltype(y) : context.numerics.float_type
     if weights === nothing
-        target_mean = mean(y)
+        total = context.numerics.stable_summation ?
+            Kernels.stable_sum(y; accumulation_type=A) : sum(A, y)
+        target_mean = T(total / A(n))
     else
         length(weights) == n || throw(SchemaMismatchError(
             "MeanRegressor weights have length $(length(weights)); expected $n observations."))
         all(w -> isfinite(w) && w >= 0, weights) || throw(UnsupportedDataError(
             "MeanRegressor weights must be finite and nonnegative."))
-        total = sum(weights)
+        total = Kernels.stable_sum(weights; accumulation_type=A)
         total > 0 || throw(UnsupportedDataError("MeanRegressor weights must have a positive sum."))
-        target_mean = sum(y .* weights) / total
+        target_mean = T(Kernels.weighted_mean(y, weights;
+            stable=context.numerics.stable_summation, accumulation_type=A))
     end
-    schema = infer_schema(X)
-    total_weight = weights === nothing ? float(eltype(y))(n) : sum(weights)
+    schema = with_target(infer_schema(X), y)
+    total_weight = weights === nothing ? A(n) :
+        Kernels.stable_sum(weights; accumulation_type=A)
     details = (weighted=weights !== nothing, target_mean=target_mean,
                total_weight=total_weight)
     FittedMeanRegressor(model, target_mean,

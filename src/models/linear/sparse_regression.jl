@@ -64,7 +64,8 @@ function fit(model::AbstractSparseLinearRegressor, X::AbstractMatrix, y::Abstrac
     result = Solvers.elastic_net_coordinate_descent(data, T.(y);
         l1_penalty=l1_penalty, l2_penalty=l2_penalty,
         fit_intercept=model.fit_intercept, weights=weights,
-        max_iterations=model.max_iterations, tolerance=T(model.tolerance))
+        max_iterations=effective_max_iterations(context, model.max_iterations),
+        tolerance=T(effective_tolerance(context, model.tolerance)))
     warnings = result.converged ? String[] : ["$name reached max_iterations without convergence."]
     details = (solver=:coordinate_descent, iterations=result.iterations,
                converged=result.converged, maximum_update=result.maximum_update,
@@ -76,7 +77,7 @@ function fit(model::AbstractSparseLinearRegressor, X::AbstractMatrix, y::Abstrac
         observations=size(X, 1), features=size(X, 2), backend=:cpu,
         warnings=warnings, details=details, context=context)
     FittedSparseLinearRegressor(model, result.coefficients, result.intercept,
-                                fit_report, infer_schema(X))
+                                fit_report, with_target(infer_schema(X), y))
 end
 
 function predict(fitted::FittedSparseLinearRegressor, X::AbstractMatrix)

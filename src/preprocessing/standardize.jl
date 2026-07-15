@@ -21,15 +21,21 @@ capabilities(::Type{<:Standardize}) = (
 
 function fit(model::Standardize, X::AbstractMatrix; context=default_context())
     require_cpu(context, "Standardize fitting")
-    X isa SparseMatrixCSC && model.center && throw(UnsupportedDataError(
-        "Standardize with center=true would destroy sparse structure; use center=false."))
+    if X isa SparseMatrixCSC && model.center && context.numerics.sparse_centering === :error
+        throw(UnsupportedDataError(
+            "Standardize with center=true would destroy sparse structure; use center=false or NumericsPolicy(sparse_centering=:densify)."))
+    end
     _validate_numeric_matrix(X, "Standardize")
     n = size(X, 1)
     n > 0 || throw(UnsupportedDataError("Standardize requires at least one observation."))
-    running_mean = vec(mean(X; dims=1))
-    m2 = vec(sum(abs2, X .- transpose(running_mean); dims=1))
-    means = model.center ? running_mean : zeros(eltype(X), size(X, 2))
-    raw_scales = model.scale ? sqrt.(m2 ./ n) : ones(eltype(X), size(X, 2))
+    source = X isa SparseMatrixCSC && model.center ? Matrix(X) : X
+    T = eltype(X) <: AbstractFloat ? eltype(X) : context.numerics.float_type
+    A = context.numerics.accumulation_type
+    working = A.(source)
+    running_mean = T.(vec(mean(working; dims=1)))
+    m2 = T.(vec(sum(abs2, working .- transpose(A.(running_mean)); dims=1)))
+    means = model.center ? running_mean : zeros(T, size(X, 2))
+    raw_scales = model.scale ? T.(sqrt.(A.(m2) ./ A(n))) : ones(T, size(X, 2))
     scales = map(s -> iszero(s) ? one(s) : s, raw_scales)
     schema = infer_schema(X)
     details = (center=model.center, scale=model.scale,

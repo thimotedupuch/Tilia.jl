@@ -45,7 +45,8 @@ function fit(model::BernoulliRBM, X::AbstractMatrix; context=default_context())
     visible_bias = zeros(T, p)
     hidden_bias = zeros(T, model.n_components)
     history = T[]
-    for iteration in 1:model.n_iterations
+    max_iterations = effective_max_iterations(context, model.n_iterations)
+    for iteration in 1:max_iterations
         iteration_context = derive_context(context, :rbm, :iteration, iteration)
         ordering = randperm(iteration_context.rng, n)
         for start in 1:model.batch_size:n
@@ -68,7 +69,7 @@ function fit(model::BernoulliRBM, X::AbstractMatrix; context=default_context())
         push!(history, mean(abs2, data .- reconstruction))
     end
     details = (algorithm=:contrastive_divergence_1, n_components=model.n_components,
-               iterations=model.n_iterations, batch_size=min(model.batch_size, n),
+               iterations=max_iterations, batch_size=min(model.batch_size, n),
                reconstruction_error=last(history), objective_history=history)
     FittedBernoulliRBM(model, weights, visible_bias, hidden_bias,
         FitReport(observations=n, features=p, backend=:cpu, details=details,

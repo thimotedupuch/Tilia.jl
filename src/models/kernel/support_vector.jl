@@ -139,8 +139,10 @@ function fit(model::SupportVectorClassifier, X::AbstractMatrix, y::AbstractVecto
     kernel = Kernels.gram_matrix(data; kernel=model.kernel, gamma=model.gamma,
                                  degree=model.degree, coef0=model.coef0)
     trained_classes = length(classes) == 2 ? classes[end:end] : classes
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    max_iterations = effective_max_iterations(context, model.max_iterations)
     results = [_fit_squared_hinge(kernel, ifelse.(y .== class, one(T), -one(T)),
-        observation_weights, T(model.C), model.max_iterations, T(model.tolerance), T)
+        observation_weights, T(model.C), max_iterations, tolerance, T)
         for class in trained_classes]
     coefficients = reduce(hcat, [result.coefficients for result in results])
     intercept = T[result.intercept for result in results]
@@ -151,8 +153,7 @@ function fit(model::SupportVectorClassifier, X::AbstractMatrix, y::AbstractVecto
         support_vectors=[count(value -> abs(value) > T(model.tolerance), result.coefficients)
                          for result in results], kernel=model.kernel,
         class_order=copy(classes), strategy=:one_vs_rest)
-    schema = infer_schema(X)
-    schema = Schema(schema.columns; class_order=Any[classes...])
+    schema = with_class_target(infer_schema(X), classes)
     FittedSupportVectorClassifier(model, data, coefficients, intercept, classes,
         FitReport(status=all(convergence) ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,
@@ -160,15 +161,16 @@ function fit(model::SupportVectorClassifier, X::AbstractMatrix, y::AbstractVecto
             details=details, context=context), schema)
 end
 
-function _fit_epsilon_insensitive(kernel, target, weights, model, T)
+function _fit_epsilon_insensitive(kernel, target, weights, model, T,
+                                  tolerance, max_iterations)
     coefficients = zeros(T, size(kernel, 1))
     intercept = sum(weights .* target) / sum(weights)
     step = _kernel_optimizer_step(kernel, weights, T(model.C), T)
     history = T[]
     converged = false
-    iterations = model.max_iterations
+    iterations = max_iterations
     maximum_update = T(Inf)
-    for iteration in 1:model.max_iterations
+    for iteration in 1:max_iterations
         residual = kernel * coefficients .+ intercept .- target
         excess = max.(abs.(residual) .- T(model.epsilon), zero(T))
         derivative = T(model.C) / sum(weights) .* weights .* sign.(residual) .* excess
@@ -184,7 +186,7 @@ function _fit_epsilon_insensitive(kernel, target, weights, model, T)
                     T(model.C) * sum(weights .* abs2.(max.(abs.(residual) .-
                     T(model.epsilon), zero(T)))) / (T(2) * sum(weights))
         push!(history, objective)
-        if maximum_update <= T(model.tolerance)
+        if maximum_update <= tolerance
             converged = true
             iterations = iteration
             break
@@ -203,7 +205,10 @@ function fit(model::SupportVectorRegressor, X::AbstractMatrix, y::AbstractVector
     observation_weights = _boosting_weights(weights, size(X, 1), T, "SupportVectorRegressor")
     kernel = Kernels.gram_matrix(data; kernel=model.kernel, gamma=model.gamma,
                                  degree=model.degree, coef0=model.coef0)
-    result = _fit_epsilon_insensitive(kernel, target, observation_weights, model, T)
+    tolerance = T(effective_tolerance(context, model.tolerance))
+    max_iterations = effective_max_iterations(context, model.max_iterations)
+    result = _fit_epsilon_insensitive(kernel, target, observation_weights, model, T,
+                                      tolerance, max_iterations)
     details = (solver=:gradient_descent, loss=:squared_epsilon_insensitive,
         converged=result.converged, iterations=result.iterations,
         objective_history=result.history,
@@ -213,7 +218,7 @@ function fit(model::SupportVectorRegressor, X::AbstractMatrix, y::AbstractVector
         FitReport(status=result.converged ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,
             warnings=result.converged ? String[] : ["Support-vector objective did not converge."],
-            details=details, context=context), infer_schema(X))
+            details=details, context=context), with_target(infer_schema(X), y))
 end
 
 function _support_scores(fitted, X)

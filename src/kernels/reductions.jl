@@ -1,23 +1,101 @@
-function _validate_weights(values, weights)
+function _validate_weights(values, weights; accumulation_type=nothing)
     length(values) == length(weights) || throw(DimensionMismatch(
         "weights have length $(length(weights)); expected $(length(values))."))
     all(w -> isfinite(w) && w >= zero(w), weights) || throw(ArgumentError(
         "weights must be finite and nonnegative."))
-    total = sum(weights)
+    A = accumulation_type === nothing ? float(eltype(weights)) : accumulation_type
+    total = stable_sum(weights; accumulation_type=A)
     total > zero(total) || throw(ArgumentError("weights must have a positive sum."))
     total
 end
 
+"""Sum a collection, optionally using compensated floating-point accumulation."""
+function reduction_sum(values; stable::Bool=false,
+                       accumulation_type=float(eltype(values)))
+    stable && return stable_sum(values; accumulation_type)
+    sum(accumulation_type, values)
+end
+
+"""Arithmetic mean using an explicit internal accumulation type."""
+function reduction_mean(values; stable::Bool=false,
+                        accumulation_type=float(eltype(values)))
+    isempty(values) && throw(ArgumentError("mean input cannot be empty."))
+    reduction_sum(values; stable, accumulation_type) / accumulation_type(length(values))
+end
+
+"""Return `(minimum, maximum)` and reject an empty reduction explicitly."""
+function extrema_values(values)
+    isempty(values) && throw(ArgumentError("extrema input cannot be empty."))
+    extrema(values)
+end
+
+"""Index of the first minimum, giving deterministic tie handling."""
+function argmin_index(values)
+    isempty(values) && throw(ArgumentError("argmin input cannot be empty."))
+    argmin(values)
+end
+
+"""Index of the first maximum, giving deterministic tie handling."""
+function argmax_index(values)
+    isempty(values) && throw(ArgumentError("argmax input cannot be empty."))
+    argmax(values)
+end
+
+"""Sum values with Neumaier compensation in the requested accumulation type."""
+stable_sum(values; accumulation_type=float(eltype(values))) =
+    _stable_sum(values, accumulation_type)
+
+function _stable_sum(values, ::Type{A}) where {A<:AbstractFloat}
+    total = zero(A)
+    correction = zero(A)
+    @inbounds for value in values
+        converted = A(value)
+        candidate = total + converted
+        if abs(total) >= abs(converted)
+            correction += (total - candidate) + converted
+        else
+            correction += (converted - candidate) + total
+        end
+        total = candidate
+    end
+    total + correction
+end
+
 """Return `sum(values .* weights)` after validating frequency weights."""
-function weighted_sum(values, weights)
-    _validate_weights(values, weights)
-    sum(values .* weights)
+function weighted_sum(values, weights; stable::Bool=false,
+                      accumulation_type=float(promote_type(eltype(values), eltype(weights))))
+    _weighted_sum(values, weights, stable, accumulation_type)
+end
+
+function _weighted_sum(values, weights, stable::Bool, ::Type{A}) where {A<:AbstractFloat}
+    _validate_weights(values, weights; accumulation_type=A)
+    if !stable
+        return sum(A(values[index]) * A(weights[index]) for index in eachindex(values, weights))
+    end
+    total = zero(A)
+    correction = zero(A)
+    @inbounds for index in eachindex(values, weights)
+        value = A(values[index]) * A(weights[index])
+        candidate = total + value
+        if abs(total) >= abs(value)
+            correction += (total - candidate) + value
+        else
+            correction += (value - candidate) + total
+        end
+        total = candidate
+    end
+    total + correction
 end
 
 """Return the nonnegative-weighted arithmetic mean."""
-function weighted_mean(values, weights)
-    total = _validate_weights(values, weights)
-    sum(values .* weights) / total
+function weighted_mean(values, weights; stable::Bool=false,
+                       accumulation_type=float(promote_type(eltype(values), eltype(weights))))
+    _weighted_mean(values, weights, stable, accumulation_type)
+end
+
+function _weighted_mean(values, weights, stable::Bool, ::Type{A}) where {A<:AbstractFloat}
+    total = _validate_weights(values, weights; accumulation_type=A)
+    _weighted_sum(values, weights, stable, A) / total
 end
 
 """

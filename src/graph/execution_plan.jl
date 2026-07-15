@@ -33,6 +33,78 @@ struct NumericalExecutionGraph
     nodes::Vector{NumericalExecutionNode}
     edges::Vector{Tuple{Int,Int}}
     peak_buffers::Int
+    primitives::Vector{NumericalExecutionNode}
+    primitive_edges::Vector{Tuple{Int,Int}}
+end
+
+# Positional compatibility for version-2 structural persistence payloads.
+NumericalExecutionGraph(phase::Symbol, nodes::Vector{NumericalExecutionNode},
+                        edges::Vector{Tuple{Int,Int}}, peak_buffers::Int) =
+    NumericalExecutionGraph(phase, nodes, edges, peak_buffers,
+                            NumericalExecutionNode[], Tuple{Int,Int}[])
+
+function _primitive_operations(model, phase::Symbol, inference_operation::Symbol)
+    if model isa Standardize
+        return phase === :fit ? [:reduce_mean, :center, :reduce_variance, :normalize] : [:normalize]
+    elseif model isa Impute
+        return phase === :fit ? [:missing_mask, :reduce_statistic, :select_fill] :
+                                [:missing_mask, :select_fill]
+    elseif model isa OneHotEncode
+        return [:categorical_lookup, :gather, :scatter]
+    elseif model isa Union{Select,ColumnMap}
+        return [:gather]
+    elseif model isa Parallel
+        return [:fork]
+    elseif model isa Concatenate
+        return [:concatenate]
+    elseif model isa Union{PCA,TruncatedSVD}
+        return phase === :fit ? [:center, :svd, :select_components] : [:center, :matmul]
+    elseif model isa MeanRegressor
+        return phase === :fit ? [:weighted_reduction] : [:fill]
+    elseif model isa Union{LinearRegression,RidgeRegression}
+        if phase === :fit
+            solver = model.solver
+            factorization = solver === :qr ? :qr_factorization :
+                            solver === :svd ? :svd : :cholesky_factorization
+            return [:center, factorization, :triangular_solve]
+        end
+        return [:matmul, :add]
+    elseif model isa Union{LogisticRegression,SparseLogisticRegression}
+        return phase === :fit ? [:matmul, :sigmoid, :weighted_reduction, :solver_loop] :
+                                [:matmul, :add, :sigmoid, :normalize]
+    elseif model isa Union{Lasso,ElasticNet}
+        return phase === :fit ? [:center, :coordinate_descent_loop] : [:matmul, :add]
+    elseif model isa AbstractTransformer
+        return phase === :fit ? [:solver_loop, :transform] : [:transform]
+    elseif phase === :fit
+        return [:solver_loop]
+    elseif capabilities(model).probabilistic && inference_operation === :predict_proba
+        return [:score, :stable_probability_normalization]
+    end
+    [:score, :select_output]
+end
+
+function _lower_primitives(graph::SemanticGraph, nodes::Vector{NumericalExecutionNode},
+                           phase::Symbol, inference_operation::Symbol)
+    primitives = NumericalExecutionNode[]
+    edges = Tuple{Int,Int}[]
+    previous_group_last = 0
+    for (semantic, region) in zip(graph.nodes, nodes)
+        operations = semantic isa Union{TransformNode,PredictorNode} ?
+            _primitive_operations(semantic.model, phase, inference_operation) : [region.operation]
+        group_first = length(primitives) + 1
+        for operation in operations
+            primitive_id = length(primitives) + 1
+            push!(primitives, NumericalExecutionNode(
+                primitive_id, semantic.id, operation, region.input_shape, (),
+                region.element_type, region.representation, region.device,
+                region.buffer_id, region.release_after, Int[], :owned_output))
+            primitive_id > group_first && push!(edges, (primitive_id - 1, primitive_id))
+        end
+        previous_group_last > 0 && push!(edges, (previous_group_last, group_first))
+        previous_group_last = length(primitives)
+    end
+    primitives, edges
 end
 
 _execution_shape(value::AbstractArray) = size(value)
@@ -63,6 +135,31 @@ function _record_output!(node::NumericalExecutionNode, value)
     node
 end
 
+function _record_primitive_region!(graph::NumericalExecutionGraph,
+                                   semantic_node_id::Int, input, output)
+    indices = findall(node -> node.semantic_node_id == semantic_node_id,
+                      graph.primitives)
+    isempty(indices) && return graph
+    current_shape = _execution_shape(input)
+    current_type = _execution_eltype(input)
+    current_representation = _execution_representation(input)
+    for (position, index) in enumerate(indices)
+        primitive = graph.primitives[index]
+        primitive.input_shape = current_shape
+        primitive.element_type = current_type
+        primitive.representation = current_representation
+        if position == length(indices)
+            primitive.output_shape = _execution_shape(output)
+            current_shape = primitive.output_shape
+            current_type = _execution_eltype(output)
+            current_representation = _execution_representation(output)
+        else
+            primitive.output_shape = current_shape
+        end
+    end
+    graph
+end
+
 """Lower a semantic graph to an explicit fit or inference operation graph."""
 function _lower_graph(graph::SemanticGraph, input_shape::Tuple, element_type,
                       representation::Symbol; phase::Symbol=:fit,
@@ -85,7 +182,9 @@ function _lower_graph(graph::SemanticGraph, input_shape::Tuple, element_type,
             device, assignment.buffer_id,
             assignment.release_after, Int[], :owned_output))
     end
-    NumericalExecutionGraph(phase, nodes, copy(graph.edges), plan.peak_buffers)
+    primitives, primitive_edges = _lower_primitives(graph, nodes, phase, operation)
+    NumericalExecutionGraph(phase, nodes, copy(graph.edges), plan.peak_buffers,
+                            primitives, primitive_edges)
 end
 
 function lower_graph(graph::SemanticGraph, input; phase::Symbol=:fit,

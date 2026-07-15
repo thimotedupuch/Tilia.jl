@@ -14,6 +14,7 @@ makedocs(
         "Data and schemas" => "data-and-schemas.md",
         "Pipelines and graphs" => "pipelines-and-graphs.md",
         "Models" => "models.md",
+        "Model numerical contracts" => "model-semantics.md",
         "Metrics" => "metrics.md",
         "Model selection" => "model-selection.md",
         "Acceleration" => "acceleration.md",

@@ -76,7 +76,8 @@ include("core/docstrings.jl")
 export fit, predict, predict_proba, transform, inverse_transform, partial_fit
 export evaluate, tune, report, save_model, load_model
 export Chain, Parallel, ColumnMap, Select, Concatenate
-export CPUBackend, ReactantBackend, FitContext, CompilationCache, default_context, derive_context
+export CPUBackend, ReactantBackend, NumericsPolicy, FitContext, CompilationCache
+export default_context, derive_context
 export ConfusionMatrix, ROCResult, CrossValidationResult, OptimizationTrace, TuningResult
 export AbstractEstimator, AbstractFittedEstimator, AbstractTransformer, AbstractPredictor
 export MeanRegressor, Standardize, Dataset, Schema, ColumnSchema

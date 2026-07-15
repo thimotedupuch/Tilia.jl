@@ -27,4 +27,8 @@ end
     pipeline = fit(Chain(PCA(n_components=1), KNeighborsClassifier(n_neighbors=1)), X, y)
     @test predict(pipeline, X) == y
     @test size(predict_proba(pipeline, X)) == (4, 2)
+    @test_throws Tilia.UnsupportedDataError predict_proba(
+        fit(MeanRegressor(), X, Float64[1, 2, 3, 4]), X)
+    @test_throws Tilia.UnsupportedDataError partial_fit(
+        RidgeRegression(), X, Float64[1, 2, 3, 4])
 end

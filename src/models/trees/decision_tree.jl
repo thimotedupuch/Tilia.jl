@@ -274,7 +274,8 @@ function _fit_decision_tree(model, X, target, classes, weights, context)
     details = (nodes=length(nodes), leaves=leaves, maximum_depth=maximum_depth,
                criterion=model.criterion, feature_importances=copy(importances))
     schema = infer_schema(X)
-    classes === nothing || (schema = Schema(schema.columns; class_order=Any[classes...]))
+    schema = classes === nothing ? with_target(schema, target) :
+             with_class_target(schema, classes)
     FittedDecisionTree(model, nodes, classes, importances,
         FitReport(observations=n, features=p, backend=:cpu, details=details,
                   context=context), schema)

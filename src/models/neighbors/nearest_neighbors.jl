@@ -67,9 +67,13 @@ function _fit_neighbors(model, X, target, classes, context)
         "$name requested $(model.n_neighbors) neighbors from only $n training observations."))
     details = (n_neighbors=model.n_neighbors, metric=model.metric,
                weights=hasproperty(model, :weights) ? model.weights : :none)
+    base_schema = infer_schema(X)
+    schema = target === nothing ? base_schema :
+             classes === nothing ? with_target(base_schema, target) :
+             with_class_target(base_schema, classes)
     FittedNearestNeighbors(model, Matrix{float(eltype(X))}(X), target, classes,
         FitReport(observations=n, features=p, backend=:cpu, details=details,
-                  context=context), infer_schema(X))
+                  context=context), schema)
 end
 
 fit(model::NearestNeighbors, X::AbstractMatrix; context=default_context()) =

@@ -15,10 +15,13 @@ include("kernel_functions.jl")
 include("statistics.jl")
 include("selection.jl")
 
-export weighted_sum, weighted_mean, weighted_variance, stable_norm
+export stable_sum, weighted_sum, weighted_mean, weighted_variance, stable_norm
+export reduction_sum, reduction_mean, extrema_values, argmin_index, argmax_index
 export logsumexp, softmax, logsoftmax, sigmoid, binary_cross_entropy
+export clip_values
 export normalize_rows, squared_euclidean, euclidean, manhattan, cosine_distance
-export pairwise_distances, mean_squared_error, root_mean_squared_error, log_loss
+export pairwise_distances, pairwise_distance_blocks
+export mean_squared_error, root_mean_squared_error, log_loss
 export scale_columns, scale_columns!
 export gram_matrix
 export covariance_matrix, weighted_covariance, contingency_matrix, class_counts, histogram_counts

@@ -63,3 +63,36 @@ function pairwise_distances(left::AbstractMatrix, right::AbstractMatrix=left; me
     end
     result
 end
+
+"""Compute pairwise distances in bounded row blocks.
+
+Set `threaded=true` to schedule independent output blocks across Julia threads.
+Results are deterministic because every task owns disjoint result rows.
+"""
+function pairwise_distance_blocks(left::AbstractMatrix, right::AbstractMatrix=left;
+                                  metric::Symbol=:euclidean,
+                                  block_size::Integer=1024,
+                                  threaded::Bool=false)
+    block_size > 0 || throw(ArgumentError("block_size must be positive."))
+    size(left, 2) == size(right, 2) || throw(DimensionMismatch(
+        "matrices have $(size(left, 2)) and $(size(right, 2)) features."))
+    T = float(promote_type(eltype(left), eltype(right)))
+    result = Matrix{T}(undef, size(left, 1), size(right, 1))
+    starts = collect(1:block_size:size(left, 1))
+    compute_block = function (block_index)
+        first_row = starts[block_index]
+        last_row = min(first_row + block_size - 1, size(left, 1))
+        result[first_row:last_row, :] .= pairwise_distances(
+            view(left, first_row:last_row, :), right; metric)
+    end
+    if threaded && length(starts) > 1
+        Threads.@threads for block_index in eachindex(starts)
+            compute_block(block_index)
+        end
+    else
+        for block_index in eachindex(starts)
+            compute_block(block_index)
+        end
+    end
+    result
+end
