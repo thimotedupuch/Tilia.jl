@@ -23,6 +23,39 @@ function reduction_mean(values; stable::Bool=false,
     reduction_sum(values; stable, accumulation_type) / accumulation_type(length(values))
 end
 
+"""Population or corrected sample variance with explicit accumulation policy."""
+function reduction_variance(values; corrected::Bool=false, stable::Bool=false,
+                            accumulation_type=float(eltype(values)))
+    _reduction_variance(values, corrected, stable, accumulation_type)
+end
+
+function _reduction_variance(values, corrected::Bool, stable::Bool,
+                             ::Type{A}) where {A<:AbstractFloat}
+    count = length(values)
+    denominator = count - Int(corrected)
+    denominator > 0 || throw(ArgumentError(
+        corrected ? "corrected variance requires at least two values." :
+                    "variance input cannot be empty."))
+    center = (stable ? _stable_sum(values, A) : sum(A, values)) / A(count)
+    total = zero(A)
+    correction = zero(A)
+    @inbounds for value in values
+        squared = abs2(A(value) - center)
+        if stable
+            candidate = total + squared
+            if abs(total) >= abs(squared)
+                correction += (total - candidate) + squared
+            else
+                correction += (squared - candidate) + total
+            end
+            total = candidate
+        else
+            total += squared
+        end
+    end
+    (total + correction) / A(denominator)
+end
+
 """Return `(minimum, maximum)` and reject an empty reduction explicitly."""
 function extrema_values(values)
     isempty(values) && throw(ArgumentError("extrema input cannot be empty."))

@@ -34,7 +34,9 @@ capabilities(::Type{<:OneHotEncode}) = (
     partial_fit=false, probabilistic=false,
 )
 
-function fit(model::OneHotEncode, table::ColumnTable; context=default_context())
+function fit(model::OneHotEncode, table::ColumnTable; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "OneHotEncode fitting")
     specs = OneHotColumnSpec[]
     output_schema_columns = ColumnSchema[]

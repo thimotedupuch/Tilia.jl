@@ -19,7 +19,9 @@ capabilities(::Type{<:Standardize}) = (
     partial_fit=true, probabilistic=false,
 )
 
-function fit(model::Standardize, X::AbstractMatrix; context=default_context())
+function fit(model::Standardize, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Standardize fitting")
     if X isa SparseMatrixCSC && model.center && context.numerics.sparse_centering === :error
         throw(UnsupportedDataError(
@@ -50,7 +52,8 @@ partial_fit(model::Standardize, X::AbstractMatrix; kwargs...) = fit(model, X; kw
 
 """Merge another batch into fitted population mean and variance statistics."""
 function partial_fit(fitted::FittedStandardize, X::AbstractMatrix;
-                     context=default_context())
+                     weights=nothing, context=default_context())
+    reject_unsupported_weights(fitted.model, weights)
     require_cpu(context, "Standardize partial fitting")
     X isa SparseMatrixCSC && throw(UnsupportedDataError(
         "Standardize partial_fit currently requires dense batches."))

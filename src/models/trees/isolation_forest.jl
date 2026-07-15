@@ -106,7 +106,9 @@ function _anomaly_scores(trees, X, sample_size, T)
     scores
 end
 
-function fit(model::IsolationForest, X::AbstractMatrix; context=default_context())
+function fit(model::IsolationForest, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "IsolationForest fitting")
     _validate_numeric_matrix(X, "IsolationForest")
     n, p = size(X)

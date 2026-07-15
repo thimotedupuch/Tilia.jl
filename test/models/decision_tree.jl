@@ -11,6 +11,16 @@
     @test report(classifier).details.maximum_depth == 2
     @test sum(classifier.feature_importances) ≈ 1
 
+    y_binary = ifelse.(X[:, 1] .<= 0, :left, :right)
+    fast_binary = fit(DecisionTreeClassifier(max_depth=3), X, y_binary)
+    general_binary = fit(DecisionTreeClassifier(max_depth=3), X, y_binary;
+                         weights=ones(size(X, 1)))
+    @test predict(fast_binary, X) == predict(general_binary, X)
+    @test [(node.feature, node.threshold, node.left, node.right, node.is_leaf)
+           for node in fast_binary.nodes] ==
+          [(node.feature, node.threshold, node.left, node.right, node.is_leaf)
+           for node in general_binary.nodes]
+
     shallow = fit(DecisionTreeClassifier(max_depth=1), X, y_class)
     @test report(shallow).details.maximum_depth == 1
     @test report(shallow).details.leaves == 2

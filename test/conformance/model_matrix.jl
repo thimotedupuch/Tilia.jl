@@ -53,7 +53,7 @@ function _conformance_fit(model, X, yreg, yclass; weights=nothing)
     elseif task === :classification
         return fit(model, X, yclass; weights=weights)
     end
-    fit(model, X)
+    weights === nothing ? fit(model, X) : fit(model, X; weights)
 end
 
 function _conformance_output(fitted, X)
@@ -136,6 +136,16 @@ _outputs_match(left, right) = left isa AbstractArray && eltype(left) <: Number ?
                                                 weights=ones(T, size(X, 1)))
                     @test _outputs_match(first_output, _conformance_output(weighted, X))
                 end
+                if !declared.weights
+                    @test_throws Tilia.UnsupportedDataError _conformance_fit(
+                        case.make(T), X, yreg, yclass;
+                        weights=ones(T, size(X, 1)))
+                end
+                if T === Float64
+                    empty_X = Matrix{T}(undef, 0, size(X, 2))
+                    @test_throws Tilia.TiliaError _conformance_fit(
+                        case.make(T), empty_X, T[], Symbol[])
+                end
                 if declared.partial_fit
                     if model isa MeanRegressor
                         online = partial_fit(case.make(T), X[1:8, :], yreg[1:8])
@@ -217,6 +227,24 @@ end
         second_mapped = fit(mapped, table)
         @test transform(first_mapped, table) ≈ transform(second_mapped, table)
         @test size(transform(first_mapped, table)) == (4, 3)
+
+        weighted_inputs = (
+            (Impute(), missing_X),
+            (OneHotEncode(output_type=T), table),
+            (Select(1), X),
+            (Parallel(Standardize(), PCA(n_components=1)), X),
+            (Concatenate(), branches),
+            (mapped, table),
+        )
+        for (model, input) in weighted_inputs
+            @test !capabilities(model).weights
+            @test_throws Tilia.UnsupportedDataError fit(
+                model, input; weights=ones(T, size(input, 1)))
+        end
+        @test_throws Tilia.UnsupportedDataError partial_fit(
+            first_imputer, missing_X; weights=ones(T, size(missing_X, 1)))
+        @test_throws Tilia.UnsupportedDataError partial_fit(
+            fit(Standardize(), X), X; weights=ones(T, size(X, 1)))
 
         for fitted in (first_imputer, encoder, selected, parallel, concatenated, first_mapped)
             @test report(fitted) isa Tilia.FitReport

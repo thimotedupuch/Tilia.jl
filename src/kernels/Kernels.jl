@@ -16,7 +16,8 @@ include("statistics.jl")
 include("selection.jl")
 
 export stable_sum, weighted_sum, weighted_mean, weighted_variance, stable_norm
-export reduction_sum, reduction_mean, extrema_values, argmin_index, argmax_index
+export reduction_sum, reduction_mean, reduction_variance
+export extrema_values, argmin_index, argmax_index
 export logsumexp, softmax, logsoftmax, sigmoid, binary_cross_entropy
 export clip_values
 export normalize_rows, squared_euclidean, euclidean, manhattan, cosine_distance

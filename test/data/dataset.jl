@@ -29,11 +29,15 @@ end
     @test [column.name for column in fitted.schema.columns] == [:length, :width]
 
     dataset = Dataset(source; target)
+    @test dataset.features.schema === dataset.schema
     from_dataset = fit(RidgeRegression(lambda=0.1), dataset)
     @test predict(from_dataset, dataset.features) ≈ predict(fitted, source)
+    @test predict(from_dataset, dataset) ≈ predict(fitted, source)
 
     transformed = fit(Standardize(), column_table(source))
     @test size(transform(transformed, source)) == (4, 2)
     pipeline = fit(Chain(Standardize(), RidgeRegression(lambda=0.1)), source, target)
     @test size(predict(pipeline, source)) == (4,)
+    dataset_pipeline = fit(Chain(Standardize(), RidgeRegression(lambda=0.1)), dataset)
+    @test predict(dataset_pipeline, dataset) ≈ predict(pipeline, source)
 end

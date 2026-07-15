@@ -10,12 +10,19 @@
     @test inverse_transform(fitted, scores) ≈ X atol=1e-12
     @test report(fitted).details.centered
     @test fitted.components[argmax(abs.(fitted.components[:, 1])), 1] > 0
+    @test report(fitted).details.decomposition == :svd
+
+    general = [1.0 2 0; 0 1 3; 2 0 1; 4 1 2]
+    tall = repeat(general, 12, 1)
+    tall_fitted = fit(PCA(n_components=2), tall)
+    @test report(tall_fitted).details.decomposition == :covariance_eigh
+    @test transpose(tall_fitted.components) * tall_fitted.components ≈ I
+    @test all(tall_fitted.explained_variance .>= 0)
 
     whitened = fit(PCA(n_components=1, whiten=true), X)
     @test var(transform(whitened, X)[:, 1]; corrected=true) ≈ 1.0
     @test inverse_transform(whitened, transform(whitened, X)) ≈ X atol=1e-12
 
-    general = [1.0 2 0; 0 1 3; 2 0 1; 4 1 2]
     truncated = fit(TruncatedSVD(n_components=2), general)
     @test truncated.mean == zeros(3)
     @test transform(truncated, general) ≈ general * truncated.components

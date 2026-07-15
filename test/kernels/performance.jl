@@ -5,6 +5,7 @@ using Tilia.Kernels
     weights = Float64[1, 1, 2, 2]
     @test @inferred(weighted_mean(values, weights)) isa Float64
     @test @inferred(reduction_mean(values)) isa Float64
+    @test @inferred(reduction_variance(values)) isa Float64
     @test @inferred(extrema_values(values)) == (1.0, 4.0)
     @test @inferred(stable_norm(values)) isa Float64
     @test @inferred(sigmoid(1.0)) isa Float64
@@ -18,6 +19,8 @@ using Tilia.Kernels
 
     reduction_sum(values)
     @test @allocated(reduction_sum(values)) <= 64
+    reduction_variance(values)
+    @test @allocated(reduction_variance(values)) <= 64
 
     logits = randn(32, 4)
     softmax(logits; dims=2)

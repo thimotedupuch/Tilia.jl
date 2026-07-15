@@ -118,7 +118,9 @@ function _mixture_run(model, data, rng, tolerance, max_iterations)
      lower_bound=lower_bound, iterations=iterations, converged=converged, history=history)
 end
 
-function fit(model::GaussianMixture, X::AbstractMatrix; context=default_context())
+function fit(model::GaussianMixture, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "GaussianMixture fitting")
     _validate_numeric_matrix(X, "GaussianMixture")
     n, p = size(X)

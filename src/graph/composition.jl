@@ -28,9 +28,28 @@ struct FittedColumnMap{M,K,F,R,S} <: AbstractFittedTransformer
     schema::S
 end
 
-capabilities(::Type{<:Union{Select,Parallel,Concatenate,ColumnMap}}) =
-    (task=:transformation, sparse=false, missing=true, weights=false,
+capabilities(::Type{<:Select}) =
+    (task=:transformation, sparse=true, missing=true, weights=false,
      partial_fit=false, probabilistic=false)
+capabilities(::Type{<:Union{Parallel,Concatenate,ColumnMap}}) =
+    (task=:transformation, sparse=false, missing=false, weights=false,
+     partial_fit=false, probabilistic=false)
+
+function capabilities(model::Parallel)
+    declarations = capabilities.(model.steps)
+    (task=:transformation,
+     sparse=all(declaration -> declaration.sparse, declarations),
+     missing=all(declaration -> declaration.missing, declarations),
+     weights=false, partial_fit=false, probabilistic=false)
+end
+
+function capabilities(model::ColumnMap)
+    declarations = map(mapping -> capabilities(last(mapping)), model.mappings)
+    (task=:transformation,
+     sparse=false,
+     missing=all(declaration -> declaration.missing, declarations),
+     weights=false, partial_fit=false, probabilistic=false)
+end
 
 function _column_keys(columns)
     raw = columns isa Tuple || columns isa AbstractVector || columns isa AbstractRange ?
@@ -70,7 +89,9 @@ function _select_columns(table::ColumnTable, indices)
 end
 _select_columns(X::AbstractMatrix, indices) = X[:, indices]
 
-function fit(model::Select, input::Union{AbstractMatrix,ColumnTable}; context=default_context())
+function fit(model::Select, input::Union{AbstractMatrix,ColumnTable}; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Select fitting")
     indices = _resolve_columns(input, model.columns)
     output = _select_columns(input, indices)
@@ -89,7 +110,8 @@ _validate_feature_count(schema::Schema, table::ColumnTable, model_name) =
     nfeatures(table) == nfeatures(schema) ? nothing : throw(SchemaMismatchError(
         "$model_name was fitted with $(nfeatures(schema)) features; received $(nfeatures(table))."))
 
-function fit(model::Parallel, input; context=default_context())
+function fit(model::Parallel, input; weights=nothing, context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Parallel fitting")
     fitted_steps = map(step -> fit(step, input; context=context), model.steps)
     outputs = map(step -> transform(step, input), fitted_steps)
@@ -124,7 +146,9 @@ function _concatenate_inputs(inputs::Tuple)
     reduce(hcat, matrices)
 end
 
-function fit(model::Concatenate, inputs::Tuple; context=default_context())
+function fit(model::Concatenate, inputs::Tuple; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Concatenate fitting")
     output = _concatenate_inputs(inputs)
     FittedConcatenate(model, map(input -> size(input, 2), inputs),
@@ -146,7 +170,9 @@ _mapping_input(selection::ColumnTable, ::Union{Impute,OneHotEncode}) = selection
 _mapping_input(selection::ColumnTable, ::AbstractTransformer) = _numeric_matrix(selection)
 _mapping_input(selection, ::AbstractTransformer) = selection
 
-function fit(model::ColumnMap, input::Union{AbstractMatrix,ColumnTable}; context=default_context())
+function fit(model::ColumnMap, input::Union{AbstractMatrix,ColumnTable}; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "ColumnMap fitting")
     keys = map(first, model.mappings)
     fitted_steps = map(model.mappings) do mapping

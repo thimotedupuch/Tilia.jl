@@ -67,28 +67,69 @@ function _initial_centers(model, X, rng)
     copy(X[indices, :])
 end
 
+function _assign_kmeans_labels!(labels, distances)
+    @inbounds for row in axes(distances, 1)
+        best_cluster = first(axes(distances, 2))
+        best_distance = distances[row, best_cluster]
+        for cluster in Iterators.drop(axes(distances, 2), 1)
+            distance = distances[row, cluster]
+            if distance < best_distance
+                best_cluster = cluster
+                best_distance = distance
+            end
+        end
+        labels[row] = best_cluster
+    end
+    labels
+end
+
+function _updated_kmeans_centers!(new_centers, counts, X, labels, distances)
+    fill!(new_centers, zero(eltype(new_centers)))
+    fill!(counts, 0)
+    @inbounds for row in axes(X, 1)
+        cluster = labels[row]
+        counts[cluster] += 1
+        for feature in axes(X, 2)
+            new_centers[cluster, feature] += X[row, feature]
+        end
+    end
+    @inbounds for cluster in axes(new_centers, 1)
+        if iszero(counts[cluster])
+            farthest_row = first(axes(X, 1))
+            farthest_distance = minimum(view(distances, farthest_row, :))
+            for row in Iterators.drop(axes(X, 1), 1)
+                nearest_distance = minimum(view(distances, row, :))
+                if nearest_distance > farthest_distance
+                    farthest_row = row
+                    farthest_distance = nearest_distance
+                end
+            end
+            new_centers[cluster, :] .= view(X, farthest_row, :)
+        else
+            inverse_count = inv(eltype(new_centers)(counts[cluster]))
+            for feature in axes(new_centers, 2)
+                new_centers[cluster, feature] *= inverse_count
+            end
+        end
+    end
+    new_centers
+end
+
 function _kmeans_run(model, X, rng, tolerance, max_iterations)
     centers = _initial_centers(model, X, rng)
     labels = ones(Int, size(X, 1))
+    new_centers = similar(centers)
+    counts = zeros(Int, model.n_clusters)
     converged = false
     iterations = max_iterations
     objective_history = eltype(X)[]
     for iteration in 1:max_iterations
         distances = _squared_distance_matrix(X, centers)
-        labels .= map(row -> argmin(view(distances, row, :)), axes(X, 1))
-        new_centers = similar(centers)
-        for cluster in 1:model.n_clusters
-            members = findall(==(cluster), labels)
-            if isempty(members)
-                nearest = vec(minimum(distances; dims=2))
-                new_centers[cluster, :] .= view(X, argmax(nearest), :)
-            else
-                new_centers[cluster, :] .= vec(mean(view(X, members, :); dims=1))
-            end
-        end
+        _assign_kmeans_labels!(labels, distances)
+        _updated_kmeans_centers!(new_centers, counts, X, labels, distances)
         shift = maximum(sum(abs2, view(new_centers, cluster, :) .-
                                   view(centers, cluster, :)) for cluster in 1:model.n_clusters)
-        centers = new_centers
+        centers, new_centers = new_centers, centers
         updated_distances = _squared_distance_matrix(X, centers)
         push!(objective_history,
             sum(updated_distances[row, labels[row]] for row in axes(X, 1)))
@@ -99,13 +140,15 @@ function _kmeans_run(model, X, rng, tolerance, max_iterations)
         end
     end
     distances = _squared_distance_matrix(X, centers)
-    labels .= map(row -> argmin(view(distances, row, :)), axes(X, 1))
+    _assign_kmeans_labels!(labels, distances)
     inertia = sum(distances[row, labels[row]] for row in axes(X, 1))
     (centers=centers, labels=labels, inertia=inertia, iterations=iterations,
      converged=converged, objective_history=objective_history)
 end
 
-function fit(model::KMeans, X::AbstractMatrix; context=default_context())
+function fit(model::KMeans, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "KMeans fitting")
     _validate_numeric_matrix(X, "KMeans")
     n, p = size(X)

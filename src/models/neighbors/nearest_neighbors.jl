@@ -76,8 +76,11 @@ function _fit_neighbors(model, X, target, classes, context)
                   context=context), schema)
 end
 
-fit(model::NearestNeighbors, X::AbstractMatrix; context=default_context()) =
+function fit(model::NearestNeighbors, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     _fit_neighbors(model, X, nothing, nothing, context)
+end
 
 function fit(model::KNeighborsClassifier, X::AbstractMatrix, y::AbstractVector;
              weights=nothing, context=default_context())
@@ -100,6 +103,42 @@ function fit(model::KNeighborsRegressor, X::AbstractMatrix, y::AbstractVector;
     _fit_neighbors(model, X, copy(y), nothing, context)
 end
 
+function _select_small_neighborhood!(distances, indices, all_distances)
+    k = size(indices, 2)
+    @inbounds for row in axes(all_distances, 1)
+        filled = 0
+        for candidate in axes(all_distances, 2)
+            distance = all_distances[row, candidate]
+            position = filled + 1
+            while position > 1
+                previous = position - 1
+                previous_distance = distances[row, previous]
+                previous_index = indices[row, previous]
+                (distance < previous_distance ||
+                 (distance == previous_distance && candidate < previous_index)) || break
+                position -= 1
+            end
+            if filled < k
+                filled += 1
+                for slot in filled:-1:position + 1
+                    distances[row, slot] = distances[row, slot - 1]
+                    indices[row, slot] = indices[row, slot - 1]
+                end
+                distances[row, position] = distance
+                indices[row, position] = candidate
+            elseif position <= k
+                for slot in k:-1:position + 1
+                    distances[row, slot] = distances[row, slot - 1]
+                    indices[row, slot] = indices[row, slot - 1]
+                end
+                distances[row, position] = distance
+                indices[row, position] = candidate
+            end
+        end
+    end
+    distances, indices
+end
+
 """Return `(distances, indices)` for the nearest training observations."""
 function kneighbors(fitted::FittedNearestNeighbors, X::AbstractMatrix;
                     n_neighbors::Integer=fitted.model.n_neighbors)
@@ -108,14 +147,22 @@ function kneighbors(fitted::FittedNearestNeighbors, X::AbstractMatrix;
     _validate_feature_count(fitted.schema, X, name)
     0 < n_neighbors <= size(fitted.training_data, 1) || throw(InvalidHyperparameterError(
         "n_neighbors must lie between 1 and $(size(fitted.training_data, 1))."))
-    all_distances = Kernels.pairwise_distances(X, fitted.training_data; metric=fitted.model.metric)
+    requested_metric = fitted.model.metric
+    selection_metric = requested_metric === :euclidean ? :squared_euclidean : requested_metric
+    all_distances = Kernels.pairwise_distances(
+        X, fitted.training_data; metric=selection_metric)
     indices = Matrix{Int}(undef, size(X, 1), n_neighbors)
     distances = Matrix{eltype(all_distances)}(undef, size(X, 1), n_neighbors)
-    for row in axes(X, 1)
-        ordering = partialsortperm(view(all_distances, row, :), 1:n_neighbors)
-        indices[row, :] .= ordering
-        distances[row, :] .= view(all_distances, row, ordering)
+    if n_neighbors <= 64
+        _select_small_neighborhood!(distances, indices, all_distances)
+    else
+        for row in axes(X, 1)
+            ordering = partialsortperm(view(all_distances, row, :), 1:n_neighbors)
+            indices[row, :] .= ordering
+            distances[row, :] .= view(all_distances, row, ordering)
+        end
     end
+    requested_metric === :euclidean && (distances .= sqrt.(distances))
     distances, indices
 end
 

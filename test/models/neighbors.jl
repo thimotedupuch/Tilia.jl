@@ -6,6 +6,20 @@
     @test distances ≈ [0.1 0.9]
     @test transform(index, [0.1 0.0]) == distances
 
+    tied = fit(NearestNeighbors(n_neighbors=3), [-1.0 0.0; 1.0 0.0; 0.0 2.0])
+    tied_distances, tied_indices = kneighbors(tied, [0.0 0.0])
+    @test tied_indices == [1 2 3]
+    @test tied_distances ≈ [1.0 1.0 2.0]
+    squared = fit(NearestNeighbors(n_neighbors=2, metric=:squared_euclidean), X)
+    @test first(kneighbors(squared, [0.1 0.0])) ≈ [0.01 0.81]
+
+    many = reshape(collect(1.0:70.0), :, 1)
+    many_index = fit(NearestNeighbors(n_neighbors=65), many)
+    many_distances, many_indices = kneighbors(many_index, reshape([1.0], 1, 1);
+                                               n_neighbors=65)
+    @test many_indices == reshape(collect(1:65), 1, :)
+    @test many_distances == reshape(collect(0.0:64.0), 1, :)
+
     y_class = [:left, :left, :left, :right]
     classifier = fit(KNeighborsClassifier(n_neighbors=3), X, y_class)
     @test predict(classifier, [0.2 0.1; 9.5 10.0]) == [:left, :left]

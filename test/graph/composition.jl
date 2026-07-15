@@ -53,3 +53,37 @@
     @test_throws Tilia.InvalidHyperparameterError ColumnMap(:age => MeanRegressor())
     @test_throws Tilia.SchemaMismatchError transform(selected, ones(2, 4))
 end
+
+
+@testset "Static semantic schema propagation" begin
+    matrix_schema = Tilia.with_target(Tilia.infer_schema(randn(8, 3)), randn(8))
+    decomposition = Tilia.build_graph(Chain(PCA(n_components=2), RidgeRegression()))
+    schemas = Tilia.propagate_schema(decomposition, matrix_schema; observations=8)
+    @test [column.name for column in schemas[1].columns] == [:component1, :component2]
+    @test only(schemas[2].columns).role == :prediction
+
+    branched = Tilia.build_graph(Chain(
+        Parallel(Standardize(), PCA(n_components=1)), Concatenate(), MeanRegressor()))
+    branch_schemas = Tilia.propagate_schema(branched, matrix_schema; observations=8)
+    @test branch_schemas[1] isa Tuple
+    @test Tilia.nfeatures(branch_schemas[2]) == 4
+
+    table = column_table((value=[1.0, 2, 3], group=[:a, :b, :a]))
+    mapped = ColumnMap(:value => Standardize(),
+                       :group => OneHotEncode(passthrough_numeric=false))
+    mapped_schema = output_schema(mapped, table.schema)
+    @test [column.name for column in mapped_schema.columns] ==
+          [:value, :group__a, :group__b]
+    @test all(column -> !isempty(column.provenance), mapped_schema.columns)
+
+    missing_schema = Tilia.infer_schema(Matrix{Union{Missing,Float64}}(
+        [1.0 2.0; 3.0 4.0]))
+    @test all(!column.allows_missing for column in
+              output_schema(Impute(), missing_schema).columns)
+    @test !capabilities(Parallel(Standardize(), Impute())).missing
+    @test capabilities(Parallel(Impute(), Impute())).missing
+    @test !capabilities(Concatenate()).missing
+    @test capabilities(Select(1)).sparse
+    @test !capabilities(Chain(Standardize(), Lasso())).sparse
+    @test capabilities(Chain(Impute(), RidgeRegression())).missing
+end

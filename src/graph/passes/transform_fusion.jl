@@ -4,9 +4,15 @@ function _fuse_standardize(first::FittedStandardize, second::FittedStandardize)
     means = first.means .+ first.scales .* second.means
     scales = first.scales .* second.scales
     model = Standardize(center=true, scale=true)
-    details = (fused=true, original_transforms=2)
+    details = hasproperty(second.report.details, :numerical_policy) ?
+        (fused=true, original_transforms=2,
+         numerical_policy=second.report.details.numerical_policy) :
+        (fused=true, original_transforms=2)
     fit_report = FitReport(status=:success, observations=second.report.observations,
-        features=length(means), backend=:cpu, details=details)
+        features=length(means), backend=:cpu, details=details,
+        root_seed=second.report.root_seed, stream_id=second.report.stream_id,
+        deterministic=second.report.deterministic,
+        thread_count=second.report.thread_count)
     FittedStandardize(model, means, scales, fit_report, second.schema)
 end
 
@@ -58,7 +64,11 @@ function transform_fusion(fitted::FittedGraph)
                 (fitted.report.observations,)
         end
     end
-    details = merge(fitted.report.details,
+    propagated = hasproperty(fitted.report.details, :input_schema) ?
+        propagate_schema(graph, fitted.report.details.input_schema;
+                         observations=fitted.report.observations) : nothing
+    schema_details = propagated === nothing ? (;) : (propagated_schemas=propagated,)
+    details = merge(fitted.report.details, schema_details,
                     (fit_execution_graph=fit_execution,
                      inference_execution_graph=inference_execution,
                      optimization=(fused_transforms=fused_count,

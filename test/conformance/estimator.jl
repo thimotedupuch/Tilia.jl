@@ -31,4 +31,5 @@ end
         fit(MeanRegressor(), X, Float64[1, 2, 3, 4]), X)
     @test_throws Tilia.UnsupportedDataError partial_fit(
         RidgeRegression(), X, Float64[1, 2, 3, 4])
+    @test_throws Tilia.UnsupportedDataError fit(RidgeRegression(), X)
 end

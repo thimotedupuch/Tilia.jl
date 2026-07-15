@@ -13,6 +13,9 @@ using SparseArrays
     @test stable_norm(Float32[]) === 0.0f0
     @test reduction_sum(Float32[1, 2, 3]) === 6.0f0
     @test reduction_mean(Float32[1, 2, 3]) === 2.0f0
+    @test reduction_variance(Float32[1, 2, 3]) === 2.0f0 / 3.0f0
+    @test reduction_variance(values; corrected=true) ≈ var(values; corrected=true)
+    @test reduction_variance(fill(2.0, 4); stable=true) == 0.0
     @test extrema_values([3, 1, 4]) == (1, 4)
     @test argmin_index([2, 1, 1]) == 2
     @test argmax_index([3, 3, 1]) == 1
@@ -24,6 +27,8 @@ using SparseArrays
     @test_throws ArgumentError weighted_mean(values, zeros(3))
     @test_throws ArgumentError weighted_variance([1.0], [1.0]; corrected=true)
     @test_throws ArgumentError reduction_mean(Float64[])
+    @test_throws ArgumentError reduction_variance(Float64[])
+    @test_throws ArgumentError reduction_variance([1.0]; corrected=true)
     @test_throws ArgumentError extrema_values(Int[])
 end
 

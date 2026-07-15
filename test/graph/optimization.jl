@@ -73,6 +73,8 @@
     @test report(optimized).details.optimization.original_nodes == 3
     @test length(report(optimized).details.fit_execution_graph.nodes) == 2
     @test length(report(optimized).details.inference_execution_graph.nodes) == 2
+    @test length(report(optimized).details.propagated_schemas) == 2
+    @test hasproperty(report(optimized.fitted_nodes[1]).details, :numerical_policy)
     @test length(report(fitted).details.node_timings) == 3
     @test all(timing.nanoseconds >= 0 for timing in report(fitted).details.node_timings)
     fit_execution = report(fitted).details.fit_execution_graph
@@ -105,6 +107,9 @@
     @test all(primitive -> primitive.device == :cpu, fit_execution.primitives)
     @test all(primitive -> !isempty(primitive.input_shape), fit_execution.primitives)
     @test report(fitted).details.lowered_primitives == length(fit_execution.primitives)
+    @test length(report(fitted).details.propagated_schemas) == 3
+    @test Tilia.nfeatures(report(fitted).details.propagated_schemas[1]) == size(X, 2)
+    @test only(report(fitted).details.propagated_schemas[end].columns).role == :prediction
 
     execution = Tilia.trace(optimized, X)
     @test execution.output ≈ predict(optimized, X)

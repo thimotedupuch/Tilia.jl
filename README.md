@@ -1,8 +1,9 @@
 # Tilia.jl
 
 Tilia is an experimental Julia-native classical machine-learning stack. The
-current checkpoint establishes the core estimator contracts and a semantic
-graph interpreter.
+current implementation includes the initial supervised, decomposition,
+clustering, neighbor, sparse, tree, ensemble, kernel, and shallow-neural model
+scope on a shared estimator, schema, graph, persistence, and reporting system.
 
 ```julia
 using Tilia
@@ -108,3 +109,11 @@ JULIA_NUM_PRECOMPILE_TASKS=1 julia --project=test/accelerator \
 Workflow-oriented documentation starts at `docs/src/index.md` and covers data,
 graphs, models, metrics, selection, acceleration, differentiation,
 persistence, numerical behavior, extension, and internals.
+
+A small development comparison with scikit-learn is recorded in
+[`benchmark/comparison/REPORT.md`](benchmark/comparison/REPORT.md). It is a
+directional snapshot rather than a comprehensive performance claim.
+
+## License
+
+Tilia is available under the [MIT License](LICENSE).

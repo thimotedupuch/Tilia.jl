@@ -46,7 +46,27 @@ function _svd_flip!(components)
     components
 end
 
-function fit(model::AbstractDecompositionModel, X::AbstractMatrix; context=default_context())
+function _decompose_components(prepared::Matrix{T}, requested::Int,
+                               use_covariance::Bool) where {T}
+    if use_covariance
+        gram = Symmetric(transpose(prepared) * prepared)
+        decomposition = eigen!(gram)
+        final_index = lastindex(decomposition.values)
+        selected = final_index:-1:(final_index - requested + 1)
+        components = Matrix{T}(decomposition.vectors[:, selected])
+        singular_values = T[sqrt(max(decomposition.values[index], zero(T)))
+                            for index in selected]
+        return _svd_flip!(components), singular_values, :covariance_eigh
+    end
+    decomposition = svd(prepared; full=false)
+    components = _svd_flip!(Matrix{T}(decomposition.V[:, 1:requested]))
+    singular_values = T.(decomposition.S[1:requested])
+    components, singular_values, :svd
+end
+
+function fit(model::AbstractDecompositionModel, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "$(nameof(typeof(model))) fitting")
     _validate_numeric_matrix(X, string(nameof(typeof(model))))
     n, p = size(X)
@@ -61,15 +81,16 @@ function fit(model::AbstractDecompositionModel, X::AbstractMatrix; context=defau
     feature_mean = center ? T.(vec(mean(X; dims=1))) : zeros(T, p)
     prepared = Matrix{T}(X)
     center && (prepared .-= transpose(feature_mean))
-    decomposition = svd(prepared; full=false)
-    components = _svd_flip!(Matrix{T}(decomposition.V[:, 1:requested]))
-    singular_values = T.(decomposition.S[1:requested])
+    use_covariance = model isa PCA && n >= 10p && p <= 1_000
+    components, singular_values, decomposition_method =
+        _decompose_components(prepared, requested, use_covariance)
     denominator = max(n - 1, 1)
     explained = singular_values .^ 2 ./ T(denominator)
     total_variance = sum(abs2, prepared) / T(denominator)
     ratio = iszero(total_variance) ? zeros(T, requested) : explained ./ total_variance
     details = (n_components=requested, centered=center,
                whiten=model isa PCA && model.whiten,
+               decomposition=decomposition_method,
                explained_variance_ratio=sum(ratio))
     fit_report = FitReport(observations=n, features=p, backend=:cpu,
                            details=details, context=context)

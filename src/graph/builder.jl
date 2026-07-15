@@ -33,7 +33,15 @@ Select(first, second, rest...) = Select((first, second, rest...))
 
 struct Concatenate <: AbstractTransformer end
 
-capabilities(chain::Chain) = capabilities(last(chain.steps))
+function capabilities(chain::Chain)
+    final = capabilities(last(chain.steps))
+    input_declaration = capabilities(first(chain.steps))
+    merge(final, (
+        sparse=input_declaration.sparse,
+        missing=input_declaration.missing,
+        partial_fit=false,
+    ))
+end
 
 function build_graph(chain::Chain)
     nodes = AbstractGraphNode[]

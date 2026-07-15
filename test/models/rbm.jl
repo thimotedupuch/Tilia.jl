@@ -21,6 +21,7 @@
     fitted32 = fit(BernoulliRBM(n_components=2, n_iterations=1), X32)
     @test eltype(transform(fitted32, X32)) == Float32
     @test capabilities(BernoulliRBM()).task == :transformation
+    @test !capabilities(BernoulliRBM()).probabilistic
     @test_throws Tilia.InvalidHyperparameterError BernoulliRBM(n_components=0)
     @test_throws Tilia.UnsupportedDataError fit(BernoulliRBM(), fill(2.0, 2, 2))
     @test_throws Tilia.SchemaMismatchError inverse_transform(fitted, ones(2, 4))

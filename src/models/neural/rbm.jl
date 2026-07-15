@@ -25,7 +25,7 @@ struct FittedBernoulliRBM{M,T,R,S} <: AbstractFittedTransformer
 end
 
 capabilities(::Type{<:BernoulliRBM}) = (task=:transformation, sparse=false,
-    missing=false, weights=false, partial_fit=false, probabilistic=true)
+    missing=false, weights=false, partial_fit=false, probabilistic=false)
 
 function _validate_bernoulli_data(X, name)
     _validate_numeric_matrix(X, name)
@@ -33,7 +33,9 @@ function _validate_bernoulli_data(X, name)
         "$name requires feature values in [0, 1]."))
 end
 
-function fit(model::BernoulliRBM, X::AbstractMatrix; context=default_context())
+function fit(model::BernoulliRBM, X::AbstractMatrix; weights=nothing,
+             context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "BernoulliRBM fitting")
     _validate_bernoulli_data(X, "BernoulliRBM")
     n, p = size(X)

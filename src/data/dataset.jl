@@ -23,6 +23,8 @@ end
 function Dataset(source; target=nothing, weights=nothing, schema=nothing)
     features = column_table(source)
     chosen_schema = schema === nothing ? features.schema : schema
+    nfeatures(chosen_schema) == nfeatures(features) || throw(SchemaMismatchError(
+        "Dataset schema has $(nfeatures(chosen_schema)) columns; table has $(nfeatures(features))."))
     n = nrows(features)
     target === nothing || length(target) == n || throw(SchemaMismatchError(
         "Dataset target has length $(length(target)); expected $n observations."))
@@ -30,5 +32,6 @@ function Dataset(source; target=nothing, weights=nothing, schema=nothing)
         "Dataset weights have length $(length(weights)); expected $n observations."))
     enriched_schema = target === nothing || chosen_schema.target_logical_type !== nothing ?
                       chosen_schema : with_target(chosen_schema, target)
-    Dataset(features, target, weights, enriched_schema)
+    owned_features = ColumnTable(features.names, features.columns, enriched_schema)
+    Dataset(owned_features, target, weights, enriched_schema)
 end

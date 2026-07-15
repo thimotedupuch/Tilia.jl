@@ -133,12 +133,85 @@ function _node_summary(classifier, target, weights, indices, classes, criterion,
     impurity, prediction, 0, T[]
 end
 
-function _best_tree_split(model, X, target, weights, indices, classes, parent_impurity, rng, T)
+@inline function _tree_sum_abs2(values)
+    total = zero(eltype(values))
+    @inbounds @simd for value in values
+        total += abs2(value)
+    end
+    total
+end
+
+function _best_binary_gini_split(model, X, target, indices, parent_impurity, rng, T)
     best_gain = -T(Inf)
     best_feature = 0
     best_threshold = zero(T)
-    best_left = Int[]
-    best_right = Int[]
+    best_ordered = Int[]
+    best_position = 0
+    node_count = length(indices)
+    total_first_class = count(index -> target[index] == 1, indices)
+    for feature in _tree_features(model, size(X, 2), rng)
+        ordered = sort(indices; by=index -> (X[index, feature], index))
+        first_value = X[first(ordered), feature]
+        last_value = X[last(ordered), feature]
+        first_value == last_value && continue
+        random_threshold = model.splitter === :random ?
+            first_value + rand(rng, T) * (last_value - first_value) : nothing
+        random_position = 0
+        if random_threshold !== nothing
+            @inbounds for position in eachindex(ordered)
+                X[ordered[position], feature] <= random_threshold || break
+                random_position = position
+            end
+        end
+        left_first_class = 0
+        @inbounds for position in 1:node_count-1
+            left_first_class += target[ordered[position]] == 1
+            position < model.min_samples_leaf && continue
+            node_count - position < model.min_samples_leaf && break
+            model.splitter === :random && position != random_position && continue
+            left_value = X[ordered[position], feature]
+            right_value = X[ordered[position + 1], feature]
+            left_value == right_value && continue
+            left_second_class = position - left_first_class
+            right_first_class = total_first_class - left_first_class
+            right_count = node_count - position
+            right_second_class = right_count - right_first_class
+            left_impurity = one(T) -
+                (abs2(T(left_first_class)) + abs2(T(left_second_class))) /
+                abs2(T(position))
+            right_impurity = one(T) -
+                (abs2(T(right_first_class)) + abs2(T(right_second_class))) /
+                abs2(T(right_count))
+            gain = parent_impurity -
+                (T(position) * left_impurity + T(right_count) * right_impurity) /
+                T(node_count)
+            if gain > best_gain
+                best_gain = gain
+                best_feature = feature
+                best_threshold = model.splitter === :best ?
+                    T(left_value / 2 + right_value / 2) : T(random_threshold)
+                best_ordered = ordered
+                best_position = position
+            end
+        end
+    end
+    best_left = best_position == 0 ? Int[] : best_ordered[1:best_position]
+    best_right = best_position == 0 ? Int[] : best_ordered[best_position + 1:end]
+    best_gain, best_feature, best_threshold, best_left, best_right
+end
+
+function _best_tree_split(model, X, target, weights, indices, classes,
+                          parent_impurity, rng, T, unit_weights)
+    if unit_weights && model isa DecisionTreeClassifier &&
+       model.criterion === :gini && length(classes) == 2
+        return _best_binary_gini_split(
+            model, X, target, indices, parent_impurity, rng, T)
+    end
+    best_gain = -T(Inf)
+    best_feature = 0
+    best_threshold = zero(T)
+    best_ordered = Int[]
+    best_position = 0
     classifier = model isa DecisionTreeClassifier
     total_weight = sum(view(weights, indices))
     for feature in _tree_features(model, size(X, 2), rng)
@@ -164,7 +237,7 @@ function _best_tree_split(model, X, target, weights, indices, classes, parent_im
             right_squared_sum = sum(index -> weights[index] * abs2(target[index]), ordered)
         end
 
-        for position in 1:length(ordered)-1
+        @inbounds for position in 1:length(ordered)-1
             index = ordered[position]
             weight = weights[index]
             left_weight += weight
@@ -191,8 +264,8 @@ function _best_tree_split(model, X, target, weights, indices, classes, parent_im
             (left_weight <= zero(T) || right_weight <= zero(T)) && continue
             if classifier
                 if model.criterion === :gini
-                    left_impurity = one(T) - sum(abs2, left_counts) / abs2(left_weight)
-                    right_impurity = one(T) - sum(abs2, right_counts) / abs2(right_weight)
+                    left_impurity = one(T) - _tree_sum_abs2(left_counts) / abs2(left_weight)
+                    right_impurity = one(T) - _tree_sum_abs2(right_counts) / abs2(right_weight)
                 else
                     left_impurity = -sum(count -> iszero(count) ? zero(T) :
                         (count / left_weight) * log2(count / left_weight), left_counts)
@@ -212,16 +285,18 @@ function _best_tree_split(model, X, target, weights, indices, classes, parent_im
                 best_feature = feature
                 best_threshold = model.splitter === :best ? T(left_value / 2 + right_value / 2) :
                     T(random_threshold)
-                best_left = ordered[1:position]
-                best_right = ordered[position + 1:end]
+                best_ordered = ordered
+                best_position = position
             end
         end
     end
+    best_left = best_position == 0 ? Int[] : best_ordered[1:best_position]
+    best_right = best_position == 0 ? Int[] : best_ordered[best_position + 1:end]
     best_gain, best_feature, best_threshold, best_left, best_right
 end
 
 function _build_tree!(nodes, importances, model, X, target, weights, indices,
-                      classes, depth, rng, T)
+                      classes, depth, rng, T, unit_weights)
     classifier = model isa DecisionTreeClassifier
     impurity, prediction, predicted_class, probabilities = _node_summary(
         classifier, target, weights, indices, classes, model.criterion, T)
@@ -235,13 +310,13 @@ function _build_tree!(nodes, importances, model, X, target, weights, indices,
                  length(indices) >= 2 * model.min_samples_leaf
     (depth_limit || pure || !splittable) && return node_index, depth
     gain, feature, threshold, left_indices, right_indices = _best_tree_split(
-        model, X, target, weights, indices, classes, impurity, rng, T)
+        model, X, target, weights, indices, classes, impurity, rng, T, unit_weights)
     (feature == 0 || gain < model.min_impurity_decrease || gain <= eps(T)) &&
         return node_index, depth
     left, left_depth = _build_tree!(nodes, importances, model, X, target, weights,
-        left_indices, classes, depth + 1, rng, T)
+        left_indices, classes, depth + 1, rng, T, unit_weights)
     right, right_depth = _build_tree!(nodes, importances, model, X, target, weights,
-        right_indices, classes, depth + 1, rng, T)
+        right_indices, classes, depth + 1, rng, T, unit_weights)
     importances[feature] += gain * sum(view(weights, indices))
     nodes[node_index] = TreeNode(feature, threshold, left, right, prediction,
         predicted_class, probabilities, length(indices), sum(view(weights, indices)), impurity, false)
@@ -267,7 +342,8 @@ function _fit_decision_tree(model, X, target, classes, weights, context)
     nodes = TreeNode{T}[]
     importances = zeros(T, p)
     _, maximum_depth = _build_tree!(nodes, importances, model, data, target,
-        observation_weights, collect(1:n), classes, 0, context.rng, T)
+        observation_weights, collect(1:n), classes, 0, context.rng, T,
+        weights === nothing)
     total_importance = sum(importances)
     iszero(total_importance) || (importances ./= total_importance)
     leaves = count(node -> node.is_leaf, nodes)

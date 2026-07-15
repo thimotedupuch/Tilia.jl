@@ -1,5 +1,8 @@
 # Contributing
 
+Participation in Tilia project spaces is governed by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 Keep Tilia's public contracts coherent and dependencies minimal. New estimators
 must declare capabilities and include conformance, mathematical-invariant, and
 regression tests as applicable. Core behavior must be implemented in this

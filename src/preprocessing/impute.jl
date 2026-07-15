@@ -62,7 +62,8 @@ function _imputation_value(values, logical_type, model, name)
     throw(InvalidHyperparameterError("unsupported imputation strategy $strategy."))
 end
 
-function fit(model::Impute, X::AbstractMatrix; context=default_context())
+function fit(model::Impute, X::AbstractMatrix; weights=nothing, context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Impute fitting")
     Base.nonmissingtype(eltype(X)) <: Number || throw(UnsupportedDataError(
         "matrix imputation requires numeric elements."))
@@ -77,7 +78,8 @@ function fit(model::Impute, X::AbstractMatrix; context=default_context())
                   context=context), schema)
 end
 
-function fit(model::Impute, table::ColumnTable; context=default_context())
+function fit(model::Impute, table::ColumnTable; weights=nothing, context=default_context())
+    reject_unsupported_weights(model, weights)
     require_cpu(context, "Impute fitting")
     nrows(table) > 0 || throw(UnsupportedDataError("Impute requires at least one observation."))
     fills = tuple((_imputation_value(column, metadata.logical_type, model, metadata.name)

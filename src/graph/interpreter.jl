@@ -4,6 +4,9 @@ fit_graph(graph::SemanticGraph, X, y; context, weights=nothing) =
 function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, weights=nothing)
     validate_leakage(graph)
     validate_backend(graph, :cpu)
+    semantic_input_schema = y === nothing ? infer_schema(X) : with_target(infer_schema(X), y)
+    propagated_schemas = propagate_schema(graph, semantic_input_schema;
+                                          observations=size(X, 1))
     value = X
     fitted_nodes = AbstractFittedEstimator[]
     node_timings = NamedTuple[]
@@ -55,6 +58,8 @@ function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, we
                        weighted=weights !== nothing,
                        fit_execution_graph=fit_execution,
                        inference_execution_graph=inference_execution,
+                       input_schema=semantic_input_schema,
+                       propagated_schemas=propagated_schemas,
                        lowered_primitives=length(fit_execution.primitives),
                        node_timings=node_timings), context=context) |>
         report -> FittedGraph(graph, fitted_nodes, report)
