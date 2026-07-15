@@ -34,14 +34,40 @@ struct FitContext{B<:AbstractBackend,R<:AbstractRNG,N<:NumericsPolicy,C<:Compila
     numerics::N
     deterministic::Bool
     cache::C
+    root_seed::UInt64
+    stream_id::String
 end
 
-FitContext(; backend=CPUBackend(), rng=Random.Xoshiro(0),
+function FitContext(; backend=CPUBackend(), seed::Integer=0, rng=nothing,
            numerics=NumericsPolicy(), deterministic=true,
-           cache=CompilationCache()) =
-    FitContext(backend, rng, numerics, deterministic, cache)
+           cache=CompilationCache(), root_seed::Integer=seed,
+           stream_id::AbstractString="root")
+    root = UInt64(root_seed)
+    generator = rng === nothing ? Random.Xoshiro(root) : rng
+    FitContext(backend, generator, numerics, deterministic, cache, root, String(stream_id))
+end
 
 default_context() = FitContext()
+
+function _derived_seed(root_seed::UInt64, stream_id::AbstractString, components)
+    description = join((string(root_seed), stream_id, map(repr, components)...), '|')
+    digest = sha256(codeunits(description))
+    seed = zero(UInt64)
+    for byte in digest[1:8]
+        seed = (seed << 8) | UInt64(byte)
+    end
+    seed
+end
+
+"""Derive a deterministic named random substream without mutating its parent."""
+function derive_context(context::FitContext, components...)
+    suffix = join(map(string, components), '/')
+    identifier = isempty(context.stream_id) ? suffix : string(context.stream_id, '/', suffix)
+    seed = _derived_seed(context.root_seed, context.stream_id, components)
+    FitContext(backend=context.backend, rng=Random.Xoshiro(seed),
+        numerics=context.numerics, deterministic=context.deterministic,
+        cache=context.cache, root_seed=context.root_seed, stream_id=identifier)
+end
 
 function require_cpu(context::FitContext, operation::AbstractString)
     context.backend isa CPUBackend || throw(UnsupportedBackendError(

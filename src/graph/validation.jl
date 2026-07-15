@@ -11,14 +11,31 @@ function validate_graph(graph::SemanticGraph)
     length(predictors) <= 1 || throw(GraphValidationError("Chain can contain at most one predictor."))
     isempty(predictors) || only(predictors) == length(graph.nodes) ||
         throw(GraphValidationError("A predictor must be the final Chain step."))
+    for node in graph.nodes
+        contract = node_contract(node)
+        isempty(contract.backend_compatibility) && throw(GraphValidationError(
+            "Graph node $(node.id) declares no compatible execution backend."))
+        node isa Union{TransformNode,PredictorNode} &&
+            !contract.input.rows_are_observations && throw(GraphValidationError(
+                "Graph node $(node.id) violates Tilia's rows-as-observations contract."))
+    end
     graph
 end
 
+"""Validate that every semantic node declares support for `backend`."""
+function validate_backend(graph::SemanticGraph, backend::Symbol)
+    validate_graph(graph)
+    unsupported = [node.id for node in graph.nodes
+                   if backend ∉ node_contract(node).backend_compatibility]
+    isempty(unsupported) || throw(UnsupportedBackendError(
+        "Backend $backend is unsupported by graph nodes $(join(unsupported, ", "))."))
+    graph
+end
 
 function validate_leakage(graph::SemanticGraph)
     validate_graph(graph)
     for (index, node) in enumerate(graph.nodes)
-        consumes_target(node) && !(node isa PredictorNode) && throw(LeakageError(
+        node_contract(node).consumes_target && !(node isa PredictorNode) && throw(LeakageError(
             "Graph node $index consumes the target outside a predictor fit operation."))
     end
     graph

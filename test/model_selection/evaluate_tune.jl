@@ -15,6 +15,9 @@
     @test result.best_score == minimum(trial.score for trial in result.trials)
     @test result.fitted_model !== nothing
     @test size(predict(result.fitted_model, X)) == (12,)
+    @test all(startswith(report, "root/tuning/trial/")
+              for trial in result.trials for report in (trial.reports[1].stream_id,))
+    @test report(result.fitted_model).stream_id == "root/tuning/refit"
 
     y_class = ifelse.(X[:, 1] .> 6, :high, :low)
     classification = tune(LogisticRegression(max_iterations=200), X, y_class;

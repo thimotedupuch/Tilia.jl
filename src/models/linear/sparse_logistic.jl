@@ -124,7 +124,7 @@ function fit(model::SparseLogisticRegression, X::AbstractMatrix, y::AbstractVect
     FittedSparseLogisticRegression(model, coefficients, intercepts, classes,
         FitReport(status=all(converged) ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,
-            warnings=warnings, details=details), schema)
+            warnings=warnings, details=details, context=context), schema)
 end
 
 function predict_proba(fitted::FittedSparseLogisticRegression, X::AbstractMatrix)

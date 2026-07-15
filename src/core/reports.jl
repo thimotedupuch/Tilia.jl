@@ -6,11 +6,30 @@ struct FitReport
     backend::Symbol
     warnings::Vector{String}
     details::NamedTuple
+    root_seed::UInt64
+    stream_id::String
+    deterministic::Bool
+    thread_count::Int
 end
 
 FitReport(; status=:success, observations=0, features=0, backend=:cpu,
-          warnings=String[], details=(;)) =
-    FitReport(status, observations, features, backend, warnings, details)
+          warnings=String[], details=(;), context=nothing,
+          root_seed=nothing, stream_id=nothing, deterministic=nothing,
+          thread_count=nothing) =
+    FitReport(status, observations, features, backend, warnings, details,
+              root_seed === nothing ?
+                  (context === nothing ? UInt64(0) : context.root_seed) : UInt64(root_seed),
+              stream_id === nothing ?
+                  (context === nothing ? "unknown" : context.stream_id) : String(stream_id),
+              deterministic === nothing ?
+                  (context === nothing ? true : context.deterministic) : Bool(deterministic),
+              thread_count === nothing ? Threads.nthreads() : Int(thread_count))
+
+# Positional compatibility for version-1 structural persistence payloads.
+FitReport(status::Symbol, observations::Int, features::Int, backend::Symbol,
+          warnings::Vector{String}, details::NamedTuple) =
+    FitReport(status, observations, features, backend, warnings, details,
+              UInt64(0), "migrated", true, 1)
 
 struct ConfusionMatrix{T,L}; matrix::Matrix{T}; labels::Vector{L}; end
 struct ROCResult{T}; false_positive_rate::Vector{T}; true_positive_rate::Vector{T}; thresholds::Vector{T}; end

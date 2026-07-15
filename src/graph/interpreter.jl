@@ -3,27 +3,42 @@ fit_graph(graph::SemanticGraph, X, y; context, weights=nothing) =
 
 function fit_graph_backend(::CPUBackend, graph::SemanticGraph, X, y, context, weights=nothing)
     validate_leakage(graph)
+    validate_backend(graph, :cpu)
     value = X
     fitted_nodes = AbstractFittedEstimator[]
     node_timings = NamedTuple[]
-    for node in graph.nodes
+    fit_execution = lower_graph(graph, X; phase=:fit, device=:cpu)
+    inference_execution = lower_graph(graph, X; phase=:inference, device=:cpu)
+    for numerical_node in fit_execution.nodes
+        node = graph.nodes[numerical_node.semantic_node_id]
+        _record_input!(numerical_node, value)
+        node_context = derive_context(context, :graph_node, node.id)
         started = time_ns()
-        if node isa TransformNode
-            fitted = fit(node.model, value; context=context)
+        if numerical_node.operation === :fit_transform
+            fitted = fit(node.model, value; context=node_context)
             push!(fitted_nodes, fitted)
             value = transform(fitted, value)
+            _record_output!(numerical_node, value)
         else
             y === nothing && throw(UnsupportedDataError("Predictor node $(node.id) requires a target."))
-            fitted = fit(node.model, value, y; weights=weights, context=context)
+            fitted = fit(node.model, value, y; weights=weights, context=node_context)
             push!(fitted_nodes, fitted)
+            numerical_node.output_shape = ()
         end
+        inference_node = inference_execution.nodes[numerical_node.id]
+        inference_node.input_shape = numerical_node.input_shape
+        inference_node.element_type = numerical_node.element_type
+        inference_node.representation = numerical_node.representation
+        inference_node.output_shape = node isa TransformNode ? numerical_node.output_shape : (size(X, 1),)
         push!(node_timings, (node_id=node.id, kind=Symbol(nameof(typeof(node.model))),
                              nanoseconds=time_ns() - started))
     end
     FitReport(observations=size(X, 1), features=size(X, 2),
-              details=(nodes=length(graph.nodes), execution=:semantic_graph,
+              details=(nodes=length(graph.nodes), execution=:numerical_graph,
                        weighted=weights !== nothing,
-                       node_timings=node_timings)) |>
+                       fit_execution_graph=fit_execution,
+                       inference_execution_graph=inference_execution,
+                       node_timings=node_timings), context=context) |>
         report -> FittedGraph(graph, fitted_nodes, report)
 end
 
@@ -33,21 +48,23 @@ function fit_graph_backend(backend::AbstractBackend, graph::SemanticGraph, X, y,
         "No graph execution extension is loaded for backend $(typeof(backend)); load the corresponding optional package or use CPUBackend."))
 end
 
-function predict_graph(fitted::FittedGraph, X)
+function _execute_inference_graph(fitted::FittedGraph, X, operation::Symbol)
+    execution = lower_graph(fitted.graph, X; phase=:inference,
+                            operation=operation, device=:cpu)
     value = X
-    for node in fitted.fitted_nodes
-        value = node isa AbstractFittedTransformer ? transform(node, value) : predict(node, value)
+    for numerical_node in execution.nodes
+        node = fitted.fitted_nodes[numerical_node.semantic_node_id]
+        _record_input!(numerical_node, value)
+        value = numerical_node.operation === :transform ? transform(node, value) :
+                numerical_node.operation === :predict_proba ? predict_proba(node, value) :
+                predict(node, value)
+        _record_output!(numerical_node, value)
     end
-    value
+    (output=value, graph=execution)
 end
 
-function predict_proba_graph(fitted::FittedGraph, X)
-    value = X
-    for node in fitted.fitted_nodes[1:end-1]
-        node isa AbstractFittedTransformer || throw(GraphValidationError(
-            "Only transformer nodes may precede the final probabilistic predictor."))
-        value = transform(node, value)
-    end
-    isempty(fitted.fitted_nodes) && throw(GraphValidationError("A fitted graph cannot be empty."))
-    predict_proba(last(fitted.fitted_nodes), value)
-end
+predict_graph(fitted::FittedGraph, X) =
+    _execute_inference_graph(fitted, X, :predict).output
+
+predict_proba_graph(fitted::FittedGraph, X) =
+    _execute_inference_graph(fitted, X, :predict_proba).output

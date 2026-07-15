@@ -102,7 +102,8 @@ function fit(model::GaussianNaiveBayes, X::AbstractMatrix, y::AbstractVector;
     schema = infer_schema(X)
     schema = Schema(schema.columns; class_order=Any[classes...])
     FittedGaussianNaiveBayes(model, means, variances, priors, classes,
-        FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu, details=details), schema)
+        FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
+                  details=details, context=context), schema)
 end
 
 function _regularized_precision(covariance, regularization, model_name)
@@ -153,7 +154,7 @@ function fit(model::Union{LinearDiscriminantAnalysis,QuadraticDiscriminantAnalys
     schema = Schema(schema.columns; class_order=Any[classes...])
     FittedDiscriminantAnalysis(model, means, precisions, log_determinants, priors,
         classes, FitReport(observations=size(X, 1), features=size(X, 2),
-        backend=:cpu, details=details), schema)
+        backend=:cpu, details=details, context=context), schema)
 end
 
 function _joint_log_likelihood(fitted::FittedGaussianNaiveBayes, X)

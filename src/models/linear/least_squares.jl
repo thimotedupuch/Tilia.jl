@@ -112,7 +112,7 @@ function _fit_linear(model, X, y, weights, context)
                regularization=model isa RidgeRegression ? model.lambda : zero(eltype(result.coefficients)),
                weighted=weights !== nothing, fit_intercept=model.fit_intercept)
     fit_report = FitReport(observations=size(X, 1), features=size(X, 2),
-                           backend=:cpu, details=details)
+                           backend=:cpu, details=details, context=context)
     FittedLinearRegressor(model, result.coefficients, intercept, fit_report, infer_schema(X))
 end
 

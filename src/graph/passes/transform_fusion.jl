@@ -33,12 +33,42 @@ function transform_fusion(fitted::FittedGraph)
     end
     models = tuple((node.model for node in nodes)...)
     graph = validate_graph(build_graph(Chain(models...)))
+    has_execution_metadata = hasproperty(fitted.report.details, :fit_execution_graph) &&
+                             hasproperty(fitted.report.details, :inference_execution_graph)
+    original_fit = has_execution_metadata ? fitted.report.details.fit_execution_graph : nothing
+    original_inference = has_execution_metadata ? fitted.report.details.inference_execution_graph : nothing
+    input_shape = has_execution_metadata ? first(original_fit.nodes).input_shape :
+        (fitted.report.observations, fitted.report.features)
+    element_type = has_execution_metadata ? first(original_fit.nodes).element_type : Any
+    representation = has_execution_metadata ? first(original_fit.nodes).representation : :dense
+    device = has_execution_metadata ? first(original_fit.nodes).device : :cpu
+    fit_execution = lower_graph(graph; input_shape, element_type,
+        representation, phase=:fit, device)
+    inference_execution = lower_graph(graph; input_shape, element_type,
+        representation, phase=:inference, device)
+    for index in eachindex(nodes)
+        fit_execution.nodes[index].input_shape = input_shape
+        inference_execution.nodes[index].input_shape = input_shape
+        if nodes[index] isa AbstractFittedTransformer
+            fit_execution.nodes[index].output_shape = input_shape
+            inference_execution.nodes[index].output_shape = input_shape
+        else
+            inference_execution.nodes[index].output_shape =
+                has_execution_metadata ? last(original_inference.nodes).output_shape :
+                (fitted.report.observations,)
+        end
+    end
     details = merge(fitted.report.details,
-                    (optimization=(fused_transforms=fused_count,
+                    (fit_execution_graph=fit_execution,
+                     inference_execution_graph=inference_execution,
+                     optimization=(fused_transforms=fused_count,
                                    original_nodes=length(fitted.fitted_nodes),
                                    optimized_nodes=length(nodes)),))
     fit_report = FitReport(status=fitted.report.status, observations=fitted.report.observations,
         features=fitted.report.features, backend=fitted.report.backend,
-        warnings=copy(fitted.report.warnings), details=details)
+        warnings=copy(fitted.report.warnings), details=details,
+        root_seed=fitted.report.root_seed, stream_id=fitted.report.stream_id,
+        deterministic=fitted.report.deterministic,
+        thread_count=fitted.report.thread_count)
     FittedGraph(graph, nodes, fit_report)
 end

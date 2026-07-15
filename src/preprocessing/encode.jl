@@ -62,7 +62,7 @@ function fit(model::OneHotEncode, table::ColumnTable; context=default_context())
     FittedOneHotEncode(model, specs,
         FitReport(observations=nrows(table), features=length(output_schema_columns),
                   details=(input_features=nfeatures(table), output_features=length(output_schema_columns),
-                           handle_unknown=model.handle_unknown)), output_schema)
+                           handle_unknown=model.handle_unknown), context=context), output_schema)
 end
 
 function transform(fitted::FittedOneHotEncode, table::ColumnTable)

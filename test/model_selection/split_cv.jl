@@ -35,6 +35,8 @@
                             regression_y; cv=KFold(3))
     @test length(result.scores) == 3
     @test maximum(result.scores) < 1e-12
+    @test [fold.stream_id for fold in result.fold_reports] ==
+          ["root/cross_validation/fold/$index" for index in 1:3]
     @test all(isempty(intersect(train, test))
               for (train, test) in zip(result.train_indices, result.test_indices))
     # Each Standardize is fitted only on its fold's training rows.

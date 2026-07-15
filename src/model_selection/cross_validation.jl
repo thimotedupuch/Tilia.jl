@@ -14,8 +14,9 @@ function cross_validate(model::AbstractEstimator, input, y::AbstractVector;
     scores = Float64[]
     train_indices = Vector{Int}[]
     test_indices = Vector{Int}[]
-    for (train, test) in folds
-        fitted = fit(model, select_rows(X, train), y[train]; context=context)
+    for (fold, (train, test)) in enumerate(folds)
+        fold_context = derive_context(context, :cross_validation, :fold, fold)
+        fitted = fit(model, select_rows(X, train), y[train]; context=fold_context)
         predictions = predict(fitted, select_rows(X, test))
         push!(fitted_models, fitted)
         push!(fold_reports, report(fitted))
@@ -56,7 +57,8 @@ end
 
 function _copied_context(context)
     FitContext(backend=context.backend, rng=copy(context.rng), numerics=context.numerics,
-               deterministic=context.deterministic, cache=context.cache)
+               deterministic=context.deterministic, cache=context.cache,
+               root_seed=context.root_seed, stream_id=context.stream_id)
 end
 
 """
@@ -75,10 +77,11 @@ function tune(model::AbstractEstimator, input, y::AbstractVector;
     best_score = maximize ? -Inf : Inf
     best_model = nothing
     best_parameters = nothing
-    for parameters in combinations
+    for (trial, parameters) in enumerate(combinations)
         candidate = _replace_parameters(model, parameters)
+        trial_context = derive_context(context, :tuning, :trial, trial)
         evaluation = cross_validate(candidate, input, y; cv=cv, scoring=scoring,
-                                    context=_copied_context(context))
+                                    context=trial_context)
         score = mean(evaluation.scores)
         push!(trials, (parameters=parameters, score=score,
                        fold_scores=copy(evaluation.scores), reports=evaluation.fold_reports))
@@ -87,6 +90,7 @@ function tune(model::AbstractEstimator, input, y::AbstractVector;
             best_score, best_model, best_parameters = score, candidate, parameters
         end
     end
-    fitted = refit ? fit(best_model, input, y; context=_copied_context(context)) : nothing
+    fitted = refit ? fit(best_model, input, y;
+                         context=derive_context(context, :tuning, :refit)) : nothing
     TuningResult(best_model, best_parameters, best_score, trials, fitted)
 end

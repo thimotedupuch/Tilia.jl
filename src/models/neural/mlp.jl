@@ -80,9 +80,10 @@ function _fit_mlp(model, X, targets, classes, weights, context)
     data, target_matrix = Matrix{T}(X), Matrix{T}(targets)
     observation_weights = _boosting_weights(weights, n, T, name)
     output_count = size(target_matrix, 2)
-    input_weights = randn(context.rng, T, p, model.hidden_units) .* sqrt(T(2 / (p + model.hidden_units)))
+    initialization = derive_context(context, :mlp, :initialization)
+    input_weights = randn(initialization.rng, T, p, model.hidden_units) .* sqrt(T(2 / (p + model.hidden_units)))
     hidden_bias = zeros(T, model.hidden_units)
-    output_weights = randn(context.rng, T, model.hidden_units, output_count) .*
+    output_weights = randn(initialization.rng, T, model.hidden_units, output_count) .*
                      sqrt(T(2 / (model.hidden_units + output_count)))
     output_bias = zeros(T, output_count)
     activation = Val(model.activation)
@@ -132,7 +133,7 @@ function _fit_mlp(model, X, targets, classes, weights, context)
         FitReport(status=converged ? :success : :max_iterations,
             observations=n, features=p, backend=:cpu,
             warnings=converged ? String[] : ["$name reached max_iterations."],
-            details=details), schema)
+            details=details, context=context), schema)
 end
 
 function fit(model::MLPClassifier, X::AbstractMatrix, y::AbstractVector;

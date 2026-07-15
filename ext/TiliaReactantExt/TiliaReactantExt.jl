@@ -70,7 +70,8 @@ end
 function _cpu_context(context)
     Tilia.FitContext(backend=Tilia.CPUBackend(), rng=context.rng,
         numerics=context.numerics, deterministic=context.deterministic,
-        cache=context.cache)
+        cache=context.cache, root_seed=context.root_seed,
+        stream_id=context.stream_id)
 end
 
 function _fallback_graph(cpu_graph, reason)
@@ -84,7 +85,10 @@ function _fallback_graph(cpu_graph, reason)
     ))
     fit_report = Tilia.FitReport(status=cpu_graph.report.status,
         observations=cpu_graph.report.observations, features=cpu_graph.report.features,
-        backend=:cpu, warnings=[cpu_graph.report.warnings; warning], details=details)
+        backend=:cpu, warnings=[cpu_graph.report.warnings; warning], details=details,
+        root_seed=cpu_graph.report.root_seed, stream_id=cpu_graph.report.stream_id,
+        deterministic=cpu_graph.report.deterministic,
+        thread_count=cpu_graph.report.thread_count)
     Tilia.FittedGraph(cpu_graph.graph, cpu_graph.fitted_nodes, fit_report)
 end
 
@@ -190,7 +194,8 @@ function Tilia.report(fitted::FittedReactantGraph)
     Tilia.FitReport(status=base.status, observations=base.observations,
         features=base.features, backend=:reactant,
         warnings=[base.warnings; "Fit-time statistics and Newton solver used an explicit CPU path."],
-        details=details)
+        details=details, root_seed=base.root_seed, stream_id=base.stream_id,
+        deterministic=base.deterministic, thread_count=base.thread_count)
 end
 
 Tilia.save_model(path::AbstractString, fitted::FittedReactantGraph) =

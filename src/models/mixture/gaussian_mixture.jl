@@ -127,8 +127,9 @@ function fit(model::GaussianMixture, X::AbstractMatrix; context=default_context(
         "GaussianMixture requires at least n_components observations."))
     data = Matrix{float(eltype(X))}(X)
     best = nothing
-    for _ in 1:model.n_init
-        candidate = _mixture_run(model, data, context.rng)
+    for restart in 1:model.n_init
+        restart_context = derive_context(context, :gaussian_mixture, :restart, restart)
+        candidate = _mixture_run(model, data, restart_context.rng)
         (best === nothing || candidate.lower_bound > best.lower_bound) && (best = candidate)
     end
     warnings = best.converged ? String[] :
@@ -138,7 +139,8 @@ function fit(model::GaussianMixture, X::AbstractMatrix; context=default_context(
                n_components=model.n_components, n_init=model.n_init,
                covariance_type=:full)
     fit_report = FitReport(status=best.converged ? :success : :max_iterations,
-        observations=n, features=p, backend=:cpu, warnings=warnings, details=details)
+        observations=n, features=p, backend=:cpu, warnings=warnings,
+        details=details, context=context)
     FittedGaussianMixture(model, best.means, best.covariances, best.precisions,
         best.log_determinants, best.mixture_weights, best.lower_bound,
         best.iterations, best.converged, fit_report, infer_schema(X))

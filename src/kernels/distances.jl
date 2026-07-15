@@ -40,12 +40,23 @@ end
 function pairwise_distances(left::AbstractMatrix, right::AbstractMatrix=left; metric::Symbol=:euclidean)
     size(left, 2) == size(right, 2) || throw(DimensionMismatch(
         "matrices have $(size(left, 2)) and $(size(right, 2)) features."))
+    result_type = float(promote_type(eltype(left), eltype(right)))
+    if metric === :euclidean || metric === :squared_euclidean
+        left_data = eltype(left) === result_type ? left : result_type.(left)
+        right_data = eltype(right) === result_type ? right : result_type.(right)
+        result = Matrix{result_type}(left_data * transpose(right_data))
+        left_norms = vec(sum(abs2, left_data; dims=2))
+        right_norms = vec(sum(abs2, right_data; dims=2))
+        result .= max.(left_norms .+ transpose(right_norms) .- 2 .* result,
+                       zero(result_type))
+        metric === :euclidean && (result .= sqrt.(result))
+        return result
+    end
     metric_function = metric === :euclidean ? euclidean :
         metric === :squared_euclidean ? squared_euclidean :
         metric === :manhattan ? manhattan :
         metric === :cosine ? cosine_distance :
         throw(ArgumentError("unsupported distance metric: $metric."))
-    result_type = float(promote_type(eltype(left), eltype(right)))
     result = Matrix{result_type}(undef, size(left, 1), size(right, 1))
     for j in axes(right, 1), i in axes(left, 1)
         result[i, j] = metric_function(view(left, i, :), view(right, j, :))

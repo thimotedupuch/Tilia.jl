@@ -157,7 +157,7 @@ function fit(model::SupportVectorClassifier, X::AbstractMatrix, y::AbstractVecto
         FitReport(status=all(convergence) ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,
             warnings=all(convergence) ? String[] : ["One or more support-vector objectives did not converge."],
-            details=details), schema)
+            details=details, context=context), schema)
 end
 
 function _fit_epsilon_insensitive(kernel, target, weights, model, T)
@@ -213,7 +213,7 @@ function fit(model::SupportVectorRegressor, X::AbstractMatrix, y::AbstractVector
         FitReport(status=result.converged ? :success : :max_iterations,
             observations=size(X, 1), features=size(X, 2), backend=:cpu,
             warnings=result.converged ? String[] : ["Support-vector objective did not converge."],
-            details=details), infer_schema(X))
+            details=details, context=context), infer_schema(X))
 end
 
 function _support_scores(fitted, X)

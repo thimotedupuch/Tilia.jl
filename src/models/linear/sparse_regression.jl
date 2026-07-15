@@ -74,7 +74,7 @@ function fit(model::AbstractSparseLinearRegressor, X::AbstractMatrix, y::Abstrac
                weighted=weights !== nothing)
     fit_report = FitReport(status=result.converged ? :success : :max_iterations,
         observations=size(X, 1), features=size(X, 2), backend=:cpu,
-        warnings=warnings, details=details)
+        warnings=warnings, details=details, context=context)
     FittedSparseLinearRegressor(model, result.coefficients, result.intercept,
                                 fit_report, infer_schema(X))
 end

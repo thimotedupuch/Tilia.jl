@@ -75,6 +75,8 @@ end
         @test predict(loaded, source) == predict(fitted, source)
         @test predict_proba(loaded, source) ≈ predict_proba(fitted, source)
         @test report(loaded).details.loaded
+        @test report(loaded).root_seed == report(fitted).root_seed
+        @test report(loaded).stream_id == report(fitted).stream_id
         @test isfile(joinpath(path, "manifest.toml"))
         @test isfile(joinpath(path, "specification.toml"))
         @test isfile(joinpath(path, "schema.toml"))

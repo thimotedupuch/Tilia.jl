@@ -71,7 +71,8 @@ function fit(model::AbstractDecompositionModel, X::AbstractMatrix; context=defau
     details = (n_components=requested, centered=center,
                whiten=model isa PCA && model.whiten,
                explained_variance_ratio=sum(ratio))
-    fit_report = FitReport(observations=n, features=p, backend=:cpu, details=details)
+    fit_report = FitReport(observations=n, features=p, backend=:cpu,
+                           details=details, context=context)
     FittedDecomposition(model, components, feature_mean, singular_values,
         explained, ratio, fit_report, infer_schema(X))
 end

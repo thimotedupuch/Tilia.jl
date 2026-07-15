@@ -1,5 +1,19 @@
 abstract type AbstractGraphNode end
 
+"""Complete semantic contract declared by a graph node."""
+struct NodeContract
+    input::NamedTuple
+    output_schema_rule::Symbol
+    learns_state::Bool
+    consumes_target::Bool
+    changes_row_count::Bool
+    changes_feature_count::Bool
+    valid_at_inference::Bool
+    sparse_compatible::Bool
+    missing_compatible::Bool
+    backend_compatibility::Tuple{Vararg{Symbol}}
+end
+
 struct TransformNode{M<:AbstractTransformer} <: AbstractGraphNode
     id::Int
     model::M
@@ -44,3 +58,38 @@ learns_state(::ConversionNode) = false
 consumes_target(::ConversionNode) = false
 learns_state(::Union{ConstantNode,BinaryOperationNode}) = false
 consumes_target(::Union{ConstantNode,BinaryOperationNode}) = false
+
+preserves_feature_count(::AbstractEstimator) = false
+backend_compatibility(::AbstractEstimator) = (:cpu,)
+
+function node_contract(node::Union{TransformNode,PredictorNode})
+    declared = capabilities(node.model)
+    NodeContract(
+        input_contract(node.model),
+        :model_dispatch,
+        learns_state(node),
+        consumes_target(node),
+        false,
+        node isa PredictorNode || !preserves_feature_count(node.model),
+        valid_at_inference(node),
+        declared.sparse,
+        declared.missing,
+        backend_compatibility(node.model),
+    )
+end
+
+function node_contract(node::ConversionNode)
+    NodeContract((; rows_are_observations=true, representation=node.from),
+        :representation_conversion, false, false, false, false, true,
+        node.from === :sparse || node.to === :sparse, false, (:cpu, :reactant))
+end
+
+function node_contract(node::ConstantNode)
+    NodeContract((; constant=true), :constant, false, false, false, false, true,
+        node.value isa SparseMatrixCSC, false, (:cpu, :reactant))
+end
+
+function node_contract(::BinaryOperationNode)
+    NodeContract((; arity=2), :elementwise_binary, false, false, false, false, true,
+        true, false, (:cpu, :reactant))
+end

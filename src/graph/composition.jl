@@ -76,7 +76,7 @@ function fit(model::Select, input::Union{AbstractMatrix,ColumnTable}; context=de
     output = _select_columns(input, indices)
     FittedSelect(model, indices,
         FitReport(observations=size(input, 1), features=length(indices),
-                  details=(selected_columns=copy(indices),)),
+                  details=(selected_columns=copy(indices),), context=context),
         infer_schema(input), infer_schema(output))
 end
 
@@ -95,7 +95,8 @@ function fit(model::Parallel, input; context=default_context())
     outputs = map(step -> transform(step, input), fitted_steps)
     FittedParallel(model, fitted_steps,
         FitReport(observations=size(input, 1), features=sum(output -> size(output, 2), outputs),
-                  details=(branches=length(model.steps), output_widths=map(output -> size(output, 2), outputs))),
+                  details=(branches=length(model.steps), output_widths=map(output -> size(output, 2), outputs)),
+                  context=context),
         infer_schema(input))
 end
 transform(fitted::FittedParallel, input) =
@@ -128,7 +129,8 @@ function fit(model::Concatenate, inputs::Tuple; context=default_context())
     output = _concatenate_inputs(inputs)
     FittedConcatenate(model, map(input -> size(input, 2), inputs),
         FitReport(observations=size(output, 1), features=size(output, 2),
-                  details=(branches=length(inputs), output_features=size(output, 2))),
+                  details=(branches=length(inputs), output_features=size(output, 2)),
+                  context=context),
         infer_schema(output))
 end
 transform(fitted::FittedConcatenate, inputs::Tuple) = _concatenate_inputs(inputs)
@@ -158,7 +160,8 @@ function fit(model::ColumnMap, input::Union{AbstractMatrix,ColumnTable}; context
     matrix = _concatenate_inputs(outputs)
     FittedColumnMap(model, keys, fitted_steps,
         FitReport(observations=size(input, 1), features=size(matrix, 2),
-                  details=(mappings=length(keys), output_features=size(matrix, 2))),
+                  details=(mappings=length(keys), output_features=size(matrix, 2)),
+                  context=context),
         infer_schema(input))
 end
 

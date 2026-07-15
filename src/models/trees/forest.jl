@@ -71,10 +71,11 @@ function _fit_forest(model, X, target, classes, weights, context)
         "$name weights must be finite, nonnegative, and have positive sum."))
     tree_model = _forest_tree(model)
     trees = FittedDecisionTree[]
-    for _ in 1:model.n_estimators
-        indices = model.bootstrap ? rand(context.rng, 1:n, n) : collect(1:n)
+    for tree_index in 1:model.n_estimators
+        tree_context = derive_context(context, :forest, :tree, tree_index)
+        indices = model.bootstrap ? rand(tree_context.rng, 1:n, n) : collect(1:n)
         push!(trees, _fit_decision_tree(tree_model, view(data, indices, :),
-            target[indices], classes, observation_weights[indices], context))
+            target[indices], classes, observation_weights[indices], tree_context))
     end
     importances = vec(mean(reduce(hcat, [tree.feature_importances for tree in trees]); dims=2))
     details = (n_estimators=model.n_estimators, bootstrap=model.bootstrap,
@@ -84,7 +85,8 @@ function _fit_forest(model, X, target, classes, weights, context)
     schema = infer_schema(X)
     classes === nothing || (schema = Schema(schema.columns; class_order=Any[classes...]))
     FittedForest(model, trees, classes, importances,
-        FitReport(observations=n, features=p, backend=:cpu, details=details), schema)
+        FitReport(observations=n, features=p, backend=:cpu, details=details,
+                  context=context), schema)
 end
 
 function fit(model::Union{RandomForestClassifier,ExtraTreesClassifier},

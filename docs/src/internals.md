@@ -8,3 +8,24 @@ regions and report transfers or fallbacks.
 Useful advanced namespaces are `Tilia.Kernels` and `Tilia.Solvers`. Internal
 graph inspection is available through `Tilia.graph_data`, `Tilia.trace`,
 `Tilia.execution_plan`, and `Tilia.device_placement`.
+
+## Core public API
+
+```@autodocs
+Modules = [Tilia]
+Private = false
+```
+
+## Numerical kernels
+
+```@autodocs
+Modules = [Tilia.Kernels]
+Private = false
+```
+
+## Solvers
+
+```@autodocs
+Modules = [Tilia.Solvers]
+Private = false
+```

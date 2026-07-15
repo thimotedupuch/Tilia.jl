@@ -40,17 +40,19 @@ function fit(model::BernoulliRBM, X::AbstractMatrix; context=default_context())
     n > 0 && p > 0 || throw(UnsupportedDataError("BernoulliRBM requires observations and features."))
     T = float(eltype(X))
     data = Matrix{T}(X)
-    weights = randn(context.rng, T, p, model.n_components) .* T(0.01)
+    initialization = derive_context(context, :rbm, :initialization)
+    weights = randn(initialization.rng, T, p, model.n_components) .* T(0.01)
     visible_bias = zeros(T, p)
     hidden_bias = zeros(T, model.n_components)
     history = T[]
-    for _ in 1:model.n_iterations
-        ordering = randperm(context.rng, n)
+    for iteration in 1:model.n_iterations
+        iteration_context = derive_context(context, :rbm, :iteration, iteration)
+        ordering = randperm(iteration_context.rng, n)
         for start in 1:model.batch_size:n
             indices = ordering[start:min(start + model.batch_size - 1, n)]
             visible = view(data, indices, :)
             hidden_probabilities = Kernels.sigmoid(visible * weights .+ transpose(hidden_bias))
-            hidden_states = T.(rand(context.rng, T, size(hidden_probabilities)) .< hidden_probabilities)
+            hidden_states = T.(rand(iteration_context.rng, T, size(hidden_probabilities)) .< hidden_probabilities)
             visible_probabilities = Kernels.sigmoid(hidden_states * transpose(weights) .+
                                                      transpose(visible_bias))
             negative_hidden = Kernels.sigmoid(visible_probabilities * weights .+
@@ -69,7 +71,8 @@ function fit(model::BernoulliRBM, X::AbstractMatrix; context=default_context())
                iterations=model.n_iterations, batch_size=min(model.batch_size, n),
                reconstruction_error=last(history), objective_history=history)
     FittedBernoulliRBM(model, weights, visible_bias, hidden_bias,
-        FitReport(observations=n, features=p, backend=:cpu, details=details), infer_schema(X))
+        FitReport(observations=n, features=p, backend=:cpu, details=details,
+                  context=context), infer_schema(X))
 end
 
 function transform(fitted::FittedBernoulliRBM, X::AbstractMatrix)

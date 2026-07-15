@@ -58,3 +58,37 @@ end
         @test_throws Tilia.PersistenceVersionError load_model(directory)
     end
 end
+
+@testset "Persistence format migrations" begin
+    version_one = Dict{String,Any}(
+        "format_version" => 1,
+        "estimator" => "GenericFittedEstimator",
+        "checksums" => Dict{String,String}(),
+    )
+    version_two = Tilia.migrate(Val(1), Val(2), version_one)
+    @test version_two["format_version"] == 2
+    @test version_two["estimator_schema_version"] == 1
+    @test version_two["migration_history"] == ["1=>2"]
+    @test version_one["format_version"] == 1
+    @test Tilia._parse_persisted_float(Float32, "-0.29166722f0") == -0.29166722f0
+
+    X = Float32[1 2; 3 4; 5 6]
+    y = Float32[1, 2, 4]
+    fitted = fit(LinearRegression(), X, y)
+    mktempdir(pwd()) do directory
+        save_model(directory, fitted)
+        manifest_path = joinpath(directory, "manifest.toml")
+        manifest = TOML.parsefile(manifest_path)
+        manifest["format_version"] = 1
+        open(manifest_path, "w") do io
+            TOML.print(io, manifest; sorted=true)
+        end
+        loaded = load_model(directory)
+        @test predict(loaded, X) ≈ predict(fitted, X)
+    end
+
+    @test_throws Tilia.PersistenceVersionError Tilia._migrate_manifest(
+        Dict("format_version" => 0))
+    @test_throws Tilia.PersistenceVersionError Tilia._migrate_manifest(
+        Dict("format_version" => 3))
+end

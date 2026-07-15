@@ -60,6 +60,8 @@ include("models/kernel/kernel_ridge.jl")
 include("models/kernel/support_vector.jl")
 include("models/neural/mlp.jl")
 include("models/neural/rbm.jl")
+include("core/catalog.jl")
+include("graph/contracts.jl")
 include("graph/passes/transform_fusion.jl")
 include("graph/optimization.jl")
 include("graph/tracing.jl")
@@ -74,7 +76,7 @@ include("core/docstrings.jl")
 export fit, predict, predict_proba, transform, inverse_transform, partial_fit
 export evaluate, tune, report, save_model, load_model
 export Chain, Parallel, ColumnMap, Select, Concatenate
-export CPUBackend, ReactantBackend, FitContext, CompilationCache, default_context
+export CPUBackend, ReactantBackend, FitContext, CompilationCache, default_context, derive_context
 export ConfusionMatrix, ROCResult, CrossValidationResult, OptimizationTrace, TuningResult
 export AbstractEstimator, AbstractFittedEstimator, AbstractTransformer, AbstractPredictor
 export MeanRegressor, Standardize, Dataset, Schema, ColumnSchema
@@ -97,6 +99,7 @@ export SupportVectorClassifier, SupportVectorRegressor
 export MLPClassifier, MLPRegressor
 export BernoulliRBM
 export capabilities, input_contract, output_schema
+export model_catalog
 export accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 export log_loss, mean_squared_error, root_mean_squared_error
 export train_test_split, KFold, split, cross_validate

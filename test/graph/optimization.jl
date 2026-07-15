@@ -29,6 +29,32 @@
     @test visualization.nodes[1].learns
     @test visualization.nodes[2].consumes_target
 
+    transform_contract = Tilia.node_contract(first_transform)
+    @test transform_contract.input.rows_are_observations
+    @test transform_contract.output_schema_rule == :model_dispatch
+    @test transform_contract.learns_state
+    @test !transform_contract.consumes_target
+    @test !transform_contract.changes_row_count
+    @test !transform_contract.changes_feature_count
+    @test transform_contract.valid_at_inference
+    @test !transform_contract.sparse_compatible
+    @test !transform_contract.missing_compatible
+    @test transform_contract.backend_compatibility == (:cpu, :reactant)
+
+    predictor_contract = Tilia.node_contract(predictor)
+    @test predictor_contract.consumes_target
+    @test predictor_contract.changes_feature_count
+    @test predictor_contract.backend_compatibility == (:cpu,)
+    @test Tilia.validate_backend(graph, :cpu) === graph
+    @test_throws Tilia.UnsupportedBackendError Tilia.validate_backend(graph, :reactant)
+
+    reactant_graph = Tilia.build_graph(Chain(Standardize(), LogisticRegression()))
+    @test Tilia.validate_backend(reactant_graph, :reactant) === reactant_graph
+
+    conversion_contract = Tilia.node_contract(redundant)
+    @test !conversion_contract.learns_state
+    @test conversion_contract.output_schema_rule == :representation_conversion
+
     X = [1.0 10.0; 2.0 12.0; 4.0 18.0; 8.0 30.0]
     y = [2.0, 4.0, 9.0, 17.0]
     pipeline = Chain(Standardize(center=true, scale=false),
@@ -45,8 +71,28 @@
                           Tilia.transform(fitted.fitted_nodes[1], X)) atol=1e-12
     @test report(optimized).details.optimization.fused_transforms == 1
     @test report(optimized).details.optimization.original_nodes == 3
+    @test length(report(optimized).details.fit_execution_graph.nodes) == 2
+    @test length(report(optimized).details.inference_execution_graph.nodes) == 2
     @test length(report(fitted).details.node_timings) == 3
     @test all(timing.nanoseconds >= 0 for timing in report(fitted).details.node_timings)
+    fit_execution = report(fitted).details.fit_execution_graph
+    inference_execution = report(fitted).details.inference_execution_graph
+    @test fit_execution isa Tilia.NumericalExecutionGraph
+    @test inference_execution isa Tilia.NumericalExecutionGraph
+    @test fit_execution.phase == :fit
+    @test inference_execution.phase == :inference
+    @test [node.operation for node in fit_execution.nodes] ==
+          [:fit_transform, :fit_transform, :fit]
+    @test [node.operation for node in inference_execution.nodes] ==
+          [:transform, :transform, :predict]
+    @test all(node -> node.device == :cpu, fit_execution.nodes)
+    @test all(node -> node.mutability == :owned_output, fit_execution.nodes)
+    @test fit_execution.nodes[1].input_shape == size(X)
+    @test fit_execution.nodes[1].output_shape == size(X)
+    @test fit_execution.nodes[end].input_shape == size(X)
+    @test fit_execution.nodes[1].element_type == Float64
+    @test fit_execution.nodes[1].representation == :dense
+    @test fit_execution.peak_buffers == Tilia.execution_plan(fitted.graph).peak_buffers
 
     execution = Tilia.trace(optimized, X)
     @test execution.output ≈ predict(optimized, X)
@@ -59,6 +105,11 @@
 
     classifier = fit(Chain(Standardize(), LogisticRegression()),
         [-2.0 0.0; -1.0 1.0; 1.0 -1.0; 2.0 0.0], [:n, :n, :p, :p])
+    lowered_probability = Tilia._execute_inference_graph(classifier,
+        [-2.0 0.0; 2.0 0.0], :predict_proba)
+    @test lowered_probability.graph.nodes[end].operation == :predict_proba
+    @test lowered_probability.graph.nodes[end].output_shape == (2, 2)
+    @test vec(sum(lowered_probability.output; dims=2)) ≈ ones(2)
     probability_trace = Tilia.trace(classifier,
         [-2.0 0.0; 2.0 0.0]; operation=:predict_proba)
     @test size(probability_trace.output) == (2, 2)

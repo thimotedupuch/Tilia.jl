@@ -73,7 +73,8 @@ function fit(model::Impute, X::AbstractMatrix; context=default_context())
     missing_counts = [count(ismissing, view(X, :, column)) for column in axes(X, 2)]
     FittedImpute(model, fills,
         FitReport(observations=size(X, 1), features=size(X, 2),
-                  details=(strategy=model.strategy, missing_counts=missing_counts)), schema)
+                  details=(strategy=model.strategy, missing_counts=missing_counts),
+                  context=context), schema)
 end
 
 function fit(model::Impute, table::ColumnTable; context=default_context())
@@ -88,7 +89,8 @@ function fit(model::Impute, table::ColumnTable; context=default_context())
                            class_order=table.schema.class_order)
     FittedImpute(model, fills,
         FitReport(observations=nrows(table), features=nfeatures(table),
-                  details=(strategy=model.strategy, missing_counts=missing_counts)), output_schema)
+                  details=(strategy=model.strategy, missing_counts=missing_counts),
+                  context=context), output_schema)
 end
 
 function _filled_vector(column, fill_value)

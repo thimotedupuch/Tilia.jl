@@ -143,39 +143,77 @@ function _best_tree_split(model, X, target, weights, indices, classes, parent_im
     total_weight = sum(view(weights, indices))
     for feature in _tree_features(model, size(X, 2), rng)
         ordered = sort(indices; by=index -> (X[index, feature], index))
-        candidate_positions = if model.splitter === :best
-            collect(model.min_samples_leaf:(length(ordered) - model.min_samples_leaf))
+        first_value, last_value = X[first(ordered), feature], X[last(ordered), feature]
+        first_value == last_value && continue
+        random_threshold = model.splitter === :random ?
+            first_value + rand(rng, T) * (last_value - first_value) : nothing
+        random_position = random_threshold === nothing ? 0 :
+            searchsortedlast([X[index, feature] for index in ordered], random_threshold)
+
+        left_weight = zero(T)
+        if classifier
+            left_counts = zeros(T, length(classes))
+            right_counts = zeros(T, length(classes))
+            for index in ordered
+                right_counts[target[index]] += weights[index]
+            end
         else
-            minimum_value, maximum_value = X[first(ordered), feature], X[last(ordered), feature]
-            minimum_value == maximum_value && continue
-            random_threshold = minimum_value + rand(rng, T) * (maximum_value - minimum_value)
-            [searchsortedlast([X[index, feature] for index in ordered], random_threshold)]
+            left_sum = zero(T)
+            left_squared_sum = zero(T)
+            right_sum = sum(index -> weights[index] * target[index], ordered)
+            right_squared_sum = sum(index -> weights[index] * abs2(target[index]), ordered)
         end
-        for position in candidate_positions
-            (position < model.min_samples_leaf ||
-             length(ordered) - position < model.min_samples_leaf) && continue
+
+        for position in 1:length(ordered)-1
+            index = ordered[position]
+            weight = weights[index]
+            left_weight += weight
+            if classifier
+                class = target[index]
+                left_counts[class] += weight
+                right_counts[class] -= weight
+            else
+                contribution = weight * target[index]
+                squared_contribution = weight * abs2(target[index])
+                left_sum += contribution
+                left_squared_sum += squared_contribution
+                right_sum -= contribution
+                right_squared_sum -= squared_contribution
+            end
+
+            position < model.min_samples_leaf && continue
+            length(ordered) - position < model.min_samples_leaf && break
+            model.splitter === :random && position != random_position && continue
             left_value = X[ordered[position], feature]
             right_value = X[ordered[position + 1], feature]
             left_value == right_value && continue
-            left = ordered[1:position]
-            right = ordered[position + 1:end]
-            left_weight = sum(view(weights, left))
             right_weight = total_weight - left_weight
             (left_weight <= zero(T) || right_weight <= zero(T)) && continue
-            left_impurity = classifier ?
-                first(_class_impurity(target, weights, left, length(classes), model.criterion, T)) :
-                first(_regression_impurity(target, weights, left, T))
-            right_impurity = classifier ?
-                first(_class_impurity(target, weights, right, length(classes), model.criterion, T)) :
-                first(_regression_impurity(target, weights, right, T))
+            if classifier
+                if model.criterion === :gini
+                    left_impurity = one(T) - sum(abs2, left_counts) / abs2(left_weight)
+                    right_impurity = one(T) - sum(abs2, right_counts) / abs2(right_weight)
+                else
+                    left_impurity = -sum(count -> iszero(count) ? zero(T) :
+                        (count / left_weight) * log2(count / left_weight), left_counts)
+                    right_impurity = -sum(count -> iszero(count) ? zero(T) :
+                        (count / right_weight) * log2(count / right_weight), right_counts)
+                end
+            else
+                left_impurity = max(left_squared_sum / left_weight -
+                    abs2(left_sum / left_weight), zero(T))
+                right_impurity = max(right_squared_sum / right_weight -
+                    abs2(right_sum / right_weight), zero(T))
+            end
             gain = parent_impurity - (left_weight * left_impurity +
                 right_weight * right_impurity) / total_weight
             if gain > best_gain
                 best_gain = gain
                 best_feature = feature
                 best_threshold = model.splitter === :best ? T(left_value / 2 + right_value / 2) :
-                    T(left_value + rand(rng, T) * (right_value - left_value))
-                best_left, best_right = left, right
+                    T(random_threshold)
+                best_left = ordered[1:position]
+                best_right = ordered[position + 1:end]
             end
         end
     end
@@ -238,7 +276,8 @@ function _fit_decision_tree(model, X, target, classes, weights, context)
     schema = infer_schema(X)
     classes === nothing || (schema = Schema(schema.columns; class_order=Any[classes...]))
     FittedDecisionTree(model, nodes, classes, importances,
-        FitReport(observations=n, features=p, backend=:cpu, details=details), schema)
+        FitReport(observations=n, features=p, backend=:cpu, details=details,
+                  context=context), schema)
 end
 
 function fit(model::DecisionTreeClassifier, X::AbstractMatrix, y::AbstractVector;

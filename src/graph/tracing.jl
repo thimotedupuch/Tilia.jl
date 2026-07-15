@@ -40,9 +40,15 @@ end
 
 """Return backend-neutral node and edge data suitable for graph visualization."""
 function graph_data(graph::SemanticGraph)
-    nodes = [(id=node.id, kind=Symbol(nameof(typeof(node))), learns=learns_state(node),
-              consumes_target=consumes_target(node), inference=valid_at_inference(node))
-             for node in graph.nodes]
+    nodes = map(graph.nodes) do node
+        contract = node_contract(node)
+        (id=node.id, kind=Symbol(nameof(typeof(node))), learns=contract.learns_state,
+         consumes_target=contract.consumes_target, inference=contract.valid_at_inference,
+         changes_rows=contract.changes_row_count,
+         changes_features=contract.changes_feature_count,
+         sparse=contract.sparse_compatible, missing=contract.missing_compatible,
+         backends=contract.backend_compatibility)
+    end
     (nodes=nodes, edges=copy(graph.edges))
 end
 graph_data(fitted::FittedGraph) = graph_data(fitted.graph)

@@ -34,12 +34,7 @@ capabilities(::Type{<:KMeans}) = (task=:clustering, sparse=false, missing=false,
     weights=false, partial_fit=false, probabilistic=false)
 
 function _squared_distance_matrix(X, centers)
-    distances = Matrix{eltype(X)}(undef, size(X, 1), size(centers, 1))
-    for cluster in axes(centers, 1), observation in axes(X, 1)
-        distances[observation, cluster] = sum(abs2,
-            view(X, observation, :) .- view(centers, cluster, :))
-    end
-    distances
+    Kernels.pairwise_distances(X, centers; metric=:squared_euclidean)
 end
 
 function _sample_weighted(rng, weights)
@@ -120,8 +115,9 @@ function fit(model::KMeans, X::AbstractMatrix; context=default_context())
     T = float(eltype(X))
     data = Matrix{T}(X)
     best = nothing
-    for _ in 1:model.n_init
-        candidate = _kmeans_run(model, data, context.rng)
+    for restart in 1:model.n_init
+        restart_context = derive_context(context, :kmeans, :restart, restart)
+        candidate = _kmeans_run(model, data, restart_context.rng)
         (best === nothing || candidate.inertia < best.inertia) && (best = candidate)
     end
     warnings = best.converged ? String[] : ["KMeans reached max_iterations without convergence."]
@@ -129,7 +125,7 @@ function fit(model::KMeans, X::AbstractMatrix; context=default_context())
                objective_history=best.objective_history, n_clusters=model.n_clusters,
                n_init=model.n_init, init=model.init)
     fit_report = FitReport(observations=n, features=p, backend=:cpu,
-        warnings=warnings, details=details)
+        warnings=warnings, details=details, context=context)
     FittedKMeans(model, best.centers, best.labels, best.inertia, best.iterations, best.converged,
         fit_report, infer_schema(X))
 end

@@ -1,4 +1,33 @@
-const PERSISTENCE_FORMAT_VERSION = 1
+const PERSISTENCE_FORMAT_VERSION = 2
+
+"""Migrate a version-1 persistence manifest to version 2.
+
+Version 2 makes migration history explicit. Artifact payloads and their
+checksums are unchanged, so existing version-1 model directories remain
+loadable without rewriting user data.
+"""
+function migrate(::Val{1}, ::Val{2}, representation::AbstractDict)
+    migrated = Dict{String,Any}(string(key) => value for (key, value) in representation)
+    migrated["format_version"] = 2
+    history = String.(get(migrated, "migration_history", String[]))
+    push!(history, "1=>2")
+    migrated["migration_history"] = history
+    get!(migrated, "estimator_schema_version", 1)
+    migrated
+end
+
+function _migrate_manifest(manifest::AbstractDict)
+    version = Int(get(manifest, "format_version", 0))
+    1 <= version <= PERSISTENCE_FORMAT_VERSION || throw(PersistenceVersionError(
+        "Unsupported model format version $version; expected a version from 1 through $PERSISTENCE_FORMAT_VERSION."))
+    representation = manifest
+    while version < PERSISTENCE_FORMAT_VERSION
+        next_version = version + 1
+        representation = migrate(Val(version), Val(next_version), representation)
+        version = next_version
+    end
+    representation
+end
 
 _type_name(::Type{T}) where {T} = string(T)
 function _numeric_type(name::AbstractString)
@@ -14,7 +43,7 @@ function _encode_value(value)
     value isa AbstractString && return Dict("kind" => "String", "value" => String(value))
     value isa Bool && return Dict("kind" => "Bool", "value" => value)
     value isa Integer && return Dict("kind" => string(typeof(value)), "value" => string(value))
-    value isa AbstractFloat && return Dict("kind" => string(typeof(value)), "value" => repr(value))
+    value isa AbstractFloat && return Dict("kind" => string(typeof(value)), "value" => string(value))
     value === nothing && return Dict("kind" => "Nothing", "value" => "")
     throw(ArgumentError("Persistence does not support scalar value type $(typeof(value))."))
 end
@@ -25,8 +54,9 @@ function _decode_value(data)
     kind == "String" && return data["value"]
     kind == "Bool" && return data["value"]
     kind == "Nothing" && return nothing
-    kind in ("Int32", "Int64", "Float32", "Float64") &&
-        return parse(_numeric_type(kind), data["value"])
+    kind in ("Int32", "Int64") && return parse(_numeric_type(kind), data["value"])
+    kind in ("Float32", "Float64") &&
+        return _parse_persisted_float(_numeric_type(kind), data["value"])
     throw(PersistenceVersionError("Unsupported persisted scalar kind $kind."))
 end
 
@@ -119,7 +149,7 @@ function _encode_structural(value, arrays_directory, counter)
     value isa Integer && return Dict("kind" => "scalar", "type" => string(typeof(value)),
                                      "value" => string(value))
     value isa AbstractFloat && return Dict("kind" => "scalar", "type" => string(typeof(value)),
-                                           "value" => repr(value))
+                                           "value" => string(value))
     value isa Symbol && return Dict("kind" => "symbol", "value" => string(value))
     value isa AbstractString && return Dict("kind" => "string", "value" => String(value))
     value isa Type && return Dict("kind" => "type", "name" => string(value))
@@ -156,11 +186,25 @@ function _encode_structural(value, arrays_directory, counter)
                       for name in names])
 end
 
+function _parse_persisted_float(::Type{T}, value::AbstractString) where {T<:AbstractFloat}
+    parsed = tryparse(T, value)
+    parsed === nothing || return parsed
+    if T === Float32
+        compatible = replace(value, r"f([+-]?\d+)$" => s"e\1")
+        parsed = tryparse(T, compatible)
+        parsed === nothing || return parsed
+    elseif T === Float16 && startswith(value, "Float16(") && endswith(value, ')')
+        parsed64 = tryparse(Float64, value[9:end-1])
+        parsed64 === nothing || return T(parsed64)
+    end
+    throw(PersistenceVersionError("Could not parse persisted $T value $(repr(value))."))
+end
+
 function _decode_scalar(data)
     T = _persistence_scalar_type(data["type"])
     T === Bool && return data["value"]
     T <: Integer && return parse(T, data["value"])
-    T <: AbstractFloat && return parse(T, data["value"])
+    T <: AbstractFloat && return _parse_persisted_float(T, data["value"])
     throw(PersistenceVersionError("Unsupported structural scalar type $(data["type"])."))
 end
 
@@ -280,6 +324,10 @@ function save_model(path::AbstractString, fitted::FittedMeanRegressor)
         "estimator_schema_version" => 1,
         "package_version" => "0.1.0-DEV",
         "julia_version" => string(VERSION),
+        "root_seed" => string(fitted.report.root_seed),
+        "stream_id" => fitted.report.stream_id,
+        "deterministic" => fitted.report.deterministic,
+        "thread_count" => fitted.report.thread_count,
         "checksums" => checksums,
     ))
     path
@@ -295,10 +343,7 @@ end
 function load_model(path::AbstractString)
     manifest_path = joinpath(path, "manifest.toml")
     isfile(manifest_path) || throw(PersistenceVersionError("No manifest.toml found at model path $path."))
-    manifest = TOML.parsefile(manifest_path)
-    version = get(manifest, "format_version", 0)
-    version == PERSISTENCE_FORMAT_VERSION || throw(PersistenceVersionError(
-        "Unsupported model format version $version; expected $PERSISTENCE_FORMAT_VERSION."))
+    manifest = _migrate_manifest(TOML.parsefile(manifest_path))
     manifest["estimator"] == "FittedGraph" && return _load_graph(path, manifest)
     if manifest["estimator"] == "GenericFittedEstimator"
         for (file, checksum) in manifest["checksums"]
@@ -321,7 +366,11 @@ function load_model(path::AbstractString)
     names = Symbol.(schema_data["feature_names"])
     columns = [ColumnSchema(name, :continuous, T, false, :feature) for name in names]
     schema = Schema(columns)
-    fit_report = FitReport(features=length(columns), details=(loaded=true, target_mean=target_mean))
+    fit_report = FitReport(features=length(columns), details=(loaded=true, target_mean=target_mean),
+        root_seed=parse(UInt64, get(manifest, "root_seed", "0")),
+        stream_id=get(manifest, "stream_id", "migrated"),
+        deterministic=get(manifest, "deterministic", true),
+        thread_count=get(manifest, "thread_count", 1))
     FittedMeanRegressor(MeanRegressor(), target_mean, fit_report, schema)
 end
 
@@ -407,7 +456,11 @@ function save_model(path::AbstractString, fitted::FittedGraph)
     _write_toml(schema_path, _encode_schema(input_schema))
     _write_toml(report_path, Dict("status" => string(fitted.report.status),
         "observations" => fitted.report.observations, "features" => fitted.report.features,
-        "backend" => string(fitted.report.backend), "warnings" => fitted.report.warnings))
+        "backend" => string(fitted.report.backend), "warnings" => fitted.report.warnings,
+        "root_seed" => string(fitted.report.root_seed),
+        "stream_id" => fitted.report.stream_id,
+        "deterministic" => fitted.report.deterministic,
+        "thread_count" => fitted.report.thread_count))
     artifact_files = ["specification.toml", "schema.toml", "report.toml"]
     append!(artifact_files, [joinpath("arrays", file) for file in readdir(arrays_directory)])
     checksums = Dict(file => bytes2hex(sha256(read(joinpath(path, file)))) for file in artifact_files)
@@ -485,6 +538,10 @@ function _load_graph(path, manifest)
     fit_report = FitReport(status=Symbol(report_data["status"]),
         observations=report_data["observations"], features=report_data["features"],
         backend=Symbol(report_data["backend"]), warnings=String.(report_data["warnings"]),
-        details=(loaded=true, nodes=length(fitted_nodes), execution=:semantic_graph))
+        details=(loaded=true, nodes=length(fitted_nodes), execution=:numerical_graph),
+        root_seed=parse(UInt64, get(report_data, "root_seed", "0")),
+        stream_id=get(report_data, "stream_id", "migrated"),
+        deterministic=get(report_data, "deterministic", true),
+        thread_count=get(report_data, "thread_count", 1))
     FittedGraph(graph, fitted_nodes, fit_report)
 end

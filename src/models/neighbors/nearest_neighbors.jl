@@ -68,7 +68,8 @@ function _fit_neighbors(model, X, target, classes, context)
     details = (n_neighbors=model.n_neighbors, metric=model.metric,
                weights=hasproperty(model, :weights) ? model.weights : :none)
     FittedNearestNeighbors(model, Matrix{float(eltype(X))}(X), target, classes,
-        FitReport(observations=n, features=p, backend=:cpu, details=details), infer_schema(X))
+        FitReport(observations=n, features=p, backend=:cpu, details=details,
+                  context=context), infer_schema(X))
 end
 
 fit(model::NearestNeighbors, X::AbstractMatrix; context=default_context()) =

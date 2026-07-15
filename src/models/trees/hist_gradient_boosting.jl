@@ -109,11 +109,13 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
     trees = FittedDecisionTree[]
     history = T[]
     converged = false
-    for _ in 1:model.n_estimators
+    for iteration in 1:model.n_estimators
         residual = target .- predictions
+        tree_context = derive_context(context, :hist_gradient_boosting,
+                                      :iteration, iteration, :class, 1)
         tree = fit(DecisionTreeRegressor(max_depth=model.max_depth,
             min_samples_leaf=min(model.min_samples_leaf, max(1, size(X, 1) ÷ 2))),
-            binned, residual; weights=observation_weights, context=context)
+            binned, residual; weights=observation_weights, context=tree_context)
         push!(trees, tree)
         predictions .+= T(model.learning_rate) .* predict(tree, binned)
         loss = sum(observation_weights .* abs2.(target .- predictions)) / sum(observation_weights)
@@ -128,7 +130,7 @@ function fit(model::HistGradientBoostingRegressor, X::AbstractMatrix, y::Abstrac
                bins_per_feature=length.(edges), loss=:squared_error)
     FittedHistGradientBoosting(model, edges, trees, T[initial], nothing,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
-                  details=details), infer_schema(X))
+                  details=details, context=context), infer_schema(X))
 end
 
 function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::AbstractVector;
@@ -159,12 +161,14 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
     trees = [FittedDecisionTree[] for _ in eachindex(trained_classes)]
     history = T[]
     converged = false
-    for _ in 1:model.n_estimators
+    for iteration in 1:model.n_estimators
         for column in eachindex(trained_classes)
             residual = view(targets, :, column) .- Kernels.sigmoid(view(logits, :, column))
+            tree_context = derive_context(context, :hist_gradient_boosting,
+                                          :iteration, iteration, :class, column)
             tree = fit(DecisionTreeRegressor(max_depth=model.max_depth,
                 min_samples_leaf=min(model.min_samples_leaf, max(1, size(X, 1) ÷ 2))),
-                binned, residual; weights=observation_weights, context=context)
+                binned, residual; weights=observation_weights, context=tree_context)
             push!(trees[column], tree)
             logits[:, column] .+= T(model.learning_rate) .* predict(tree, binned)
         end
@@ -191,7 +195,7 @@ function fit(model::HistGradientBoostingClassifier, X::AbstractMatrix, y::Abstra
     schema = Schema(schema.columns; class_order=Any[classes...])
     FittedHistGradientBoosting(model, edges, trees, initial, classes,
         FitReport(observations=size(X, 1), features=size(X, 2), backend=:cpu,
-                  details=details), schema)
+                  details=details, context=context), schema)
 end
 
 function predict(fitted::FittedHistGradientBoosting{<:HistGradientBoostingRegressor},

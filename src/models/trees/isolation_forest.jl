@@ -118,12 +118,13 @@ function fit(model::IsolationForest, X::AbstractMatrix; context=default_context(
     feature_count = max(1, floor(Int, model.max_features * p))
     maximum_depth = ceil(Int, log2(sample_size))
     trees = IsolationTree{T}[]
-    for _ in 1:model.n_estimators
-        sample_indices = randperm(context.rng, n)[1:sample_size]
-        features = sort!(randperm(context.rng, p)[1:feature_count])
+    for tree_index in 1:model.n_estimators
+        tree_context = derive_context(context, :isolation_forest, :tree, tree_index)
+        sample_indices = randperm(tree_context.rng, n)[1:sample_size]
+        features = sort!(randperm(tree_context.rng, p)[1:feature_count])
         nodes = IsolationNode{T}[]
         _build_isolation_tree!(nodes, view(data, :, features), sample_indices,
-                               0, maximum_depth, context.rng, T)
+                               0, maximum_depth, tree_context.rng, T)
         push!(trees, IsolationTree(nodes, features))
     end
     scores = _anomaly_scores(trees, data, sample_size, T)
@@ -137,7 +138,8 @@ function fit(model::IsolationForest, X::AbstractMatrix; context=default_context(
                maximum_depth=maximum_depth, features_per_tree=feature_count,
                contamination=model.contamination, threshold=threshold)
     FittedIsolationForest(model, trees, sample_size, threshold,
-        FitReport(observations=n, features=p, backend=:cpu, details=details), infer_schema(X))
+        FitReport(observations=n, features=p, backend=:cpu, details=details,
+                  context=context), infer_schema(X))
 end
 
 """Return isolation anomaly scores, where larger values indicate stronger anomalies."""

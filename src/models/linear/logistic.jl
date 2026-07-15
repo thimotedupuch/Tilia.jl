@@ -106,7 +106,7 @@ function fit(model::LogisticRegression, X::AbstractMatrix, y::AbstractVector;
                regularization=model.lambda, class_order=copy(classes), strategy=:one_vs_rest)
     fit_report = FitReport(status=all(converged) ? :success : :max_iterations,
         observations=size(X, 1), features=size(X, 2), backend=:cpu,
-        warnings=warnings, details=details)
+        warnings=warnings, details=details, context=context)
     schema = infer_schema(X)
     schema = Schema(schema.columns; class_order=Any[classes...])
     FittedLogisticRegression(model, coefficients, intercepts, classes, fit_report, schema)
