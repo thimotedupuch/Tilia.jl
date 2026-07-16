@@ -1892,7 +1892,7 @@ version = "0.1.0-DEV"
     Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 
 [[deps.TiliaMakieRecipes]]
-deps = ["Makie", "Tilia"]
+deps = ["LinearAlgebra", "Makie", "Tilia"]
 path = "/home/thimote/contrib_oss/Tilia.jl/TiliaMakieRecipes/demonstrator/.."
 uuid = "75f7b872-5add-4cf8-8e67-29cba6c9988b"
 version = "0.1.0-DEV"

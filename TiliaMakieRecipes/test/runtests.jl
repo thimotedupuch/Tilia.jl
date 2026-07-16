@@ -113,6 +113,43 @@ end
     @test modelcomparisonplot([cv1, cv2]; names=["A", "B"]) isa Makie.Figure
 end
 
+@testset "Three-dimensional plots" begin
+    X = [-2.0 -1.8 -1.0; -1.5 -2.1 -1.3; -1.8 -1.2 -1.7;
+          1.7 1.8 1.2; 2.1 1.3 1.8; 1.4 2.2 1.5]
+    y = [:left, :left, :left, :right, :right, :right]
+    pca = fit(PCA(n_components=3), X)
+    @test projectionplot3d(pca, X; groups=y) isa Makie.Figure
+    @test pointcloudplot(X; groups=y, edges=[(1,2), (4,5)]) isa Makie.Figure
+    mixture = fit(GaussianMixture(n_components=2, n_init=1), X)
+    @test clusterplot3d(mixture, X) isa Makie.Figure
+    neighbors = fit(NearestNeighbors(n_neighbors=2), X)
+    @test neighborhoodplot3d(neighbors, X[[1,4],:]; n_neighbors=2) isa Makie.Figure
+
+    X2 = X[:,1:2]; target = X2[:,1] .- 0.5X2[:,2]
+    linear = fit(LinearRegression(), X2, target)
+    @test regressionsurfaceplot(linear, X2, target; resolution=12) isa Makie.Figure
+    trials = NamedTuple[(parameters=(depth=1, rate=0.1), score=0.70),
+                        (parameters=(depth=2, rate=0.1), score=0.82),
+                        (parameters=(depth=1, rate=0.2), score=0.76),
+                        (parameters=(depth=2, rate=0.2), score=0.86)]
+    tuning = TuningResult(nothing, (depth=2, rate=0.2), 0.86, trials, nothing)
+    @test tuninglandscapeplot(tuning; xparameter=:depth, yparameter=:rate) isa Makie.Figure
+end
+
+@testset "Explanatory plots" begin
+    X = [0.0 0.0; 0.2 0.1; 1.0 0.8; 1.2 1.1; 2.0 0.1; 2.2 0.2]
+    target = X[:,1] .+ 0.4X[:,2]
+    regressor = fit(LinearRegression(),X,target)
+    @test partialdependenceplot(regressor,X;feature=1,resolution=8,observations=3) isa Makie.Figure
+    @test partialdependenceplot(regressor,X;feature=(1,2),resolution=6) isa Makie.Figure
+    @test partialdependenceplot(regressor,X;feature=(1,2),resolution=6,surface=true) isa Makie.Figure
+    y=[:a,:a,:b,:b,:c,:c]
+    classifier=fit(DecisionTreeClassifier(max_depth=3),X,y)
+    @test partialdependenceplot(classifier,X;feature=1,target=:c,resolution=6) isa Makie.Figure
+    @test probabilitysimplexplot(classifier,X;groups=y) isa Makie.Figure
+    @test_throws DimensionMismatch probabilitysimplexplot([0.5 0.5; 0.2 0.8])
+end
+
 @testset "Dimensionality-reduction plots" begin
     X = [1.0 2.0 0.0 1.0;
          2.0 3.0 1.0 0.0;

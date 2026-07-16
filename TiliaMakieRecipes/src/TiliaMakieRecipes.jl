@@ -2,6 +2,7 @@ module TiliaMakieRecipes
 
 using Tilia
 using Makie
+using LinearAlgebra
 import Makie: dendrogram
 
 export TiliaPlot, tiliaplot, tiliaplot!
@@ -16,6 +17,9 @@ export learningcurveplot, validationcurveplot, residualplot
 export predictedactualplot, residualdistributionplot, coefficientplot
 export regularizationpathplot, mixturedensityplot, neighborhoodplot
 export anomalyscoreplot, tuningheatmap, tuningparallelplot, modelcomparisonplot
+export projectionplot3d, clusterplot3d, pointcloudplot
+export neighborhoodplot3d, regressionsurfaceplot, tuninglandscapeplot
+export partialdependenceplot, probabilitysimplexplot
 
 Makie.@recipe TiliaPlot (result,) begin
     color = :steelblue
@@ -180,5 +184,7 @@ end
 
 include("dimensionality_reduction.jl")
 include("model_diagnostics.jl")
+include("three_dimensional.jl")
+include("explanatory_plots.jl")
 
 end

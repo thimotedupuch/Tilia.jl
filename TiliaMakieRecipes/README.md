@@ -81,6 +81,44 @@ sample counts, impurity, predictions, and class color. Tuning and comparison
 plots consume Tilia's semantic `TuningResult` and `CrossValidationResult`
 objects directly.
 
+## Interactive 3D plots
+
+Six `Axis3` visualizations work as static CairoMakie figures and become freely
+rotatable when rendered with GLMakie:
+
+```julia
+projectionplot3d(fitted_projection, X; groups=labels)
+clusterplot3d(fitted_clusterer, X3)
+pointcloudplot(X3; groups=labels, edges=graph_edges)
+neighborhoodplot3d(fitted_neighbors, queries)
+regressionsurfaceplot(fitted_regressor, X2, y)
+tuninglandscapeplot(tuning_result; xparameter=:depth, yparameter=:rate)
+```
+
+Cluster plots add centroids, noise markers, and translucent covariance
+ellipsoids. Regression surfaces retain the observations and draw residual
+stems to the fitted surface. Point clouds may use categorical groups or a
+continuous scalar color channel.
+
+## Partial dependence and probability simplex
+
+The final explanatory plots cover nonlinear feature effects and three-class
+predictive uncertainty:
+
+```julia
+partialdependenceplot(fitted, X; feature=3, ice=true)
+partialdependenceplot(fitted, X; feature=(3,4), target=:virginica)
+partialdependenceplot(fitted, X; feature=(3,4), target=:virginica, surface=true)
+probabilitysimplexplot(fitted_classifier, X; groups=true_labels)
+```
+
+For classifiers, `target` selects the probability being averaged. One-feature
+partial-dependence plots overlay sampled ICE curves and the empirical feature
+distribution. Two-feature effects can be rendered as a static contour or an
+interactive `Axis3` surface. The simplex accepts either a fitted classifier or
+an `n × 3` probability matrix and supports coloring by observed or predicted
+class.
+
 For a local checkout, instantiate and run the isolated tests with:
 
 ```sh

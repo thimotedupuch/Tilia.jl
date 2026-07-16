@@ -4,6 +4,7 @@ authors = ["Tilia contributors"]
 version = "0.1.0-DEV"
 
 [deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Tilia = "86c3e6f3-4b72-4d3d-a746-6fd3a5ac49ca"
 
