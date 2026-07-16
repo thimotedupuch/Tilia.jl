@@ -47,7 +47,7 @@
 #         run: julia --project=test/differentiation -e 'using Pkg; Pkg.instantiate()'
 #       - name: Test DifferentiationInterface extension
 #         run: julia --project=test/differentiation test/differentiation/runtests.jl
-#   visualization:
+#   makie-recipes:
 #     runs-on: ubuntu-latest
 #     env:
 #       JULIA_NUM_PRECOMPILE_TASKS: '1'
@@ -57,7 +57,7 @@
 #         with:
 #           version: '1'
 #       - uses: julia-actions/cache@v2
-#       - name: Instantiate visualization environment
-#         run: julia --project=test/visualization -e 'using Pkg; Pkg.instantiate()'
-#       - name: Test Makie extension
-#         run: julia --project=test/visualization test/visualization/runtests.jl
+#       - name: Instantiate TiliaMakieRecipes test environment
+#         run: julia --project=TiliaMakieRecipes/test -e 'using Pkg; Pkg.instantiate()'
+#       - name: Test TiliaMakieRecipes
+#         run: julia --project=TiliaMakieRecipes/test TiliaMakieRecipes/test/runtests.jl

@@ -1,5 +1,6 @@
 using Test
 using Tilia
+using TiliaMakieRecipes
 using Makie
 
 @testset "Makie semantic result conversions" begin
@@ -41,7 +42,6 @@ using Makie
     @test Makie.convert_arguments(Makie.Lines, optimization) ==
           ([1, 2, 3], optimization.objective)
 
-    # Exercise Makie's complete generic plotting dispatch without a display backend.
     plot = Makie.plot(confusion)
     @test plot isa Makie.FigureAxisPlot
 end

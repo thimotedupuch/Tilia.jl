@@ -87,11 +87,14 @@ test suite.
 
 ## Optional differentiation and visualization
 
-`DifferentiationInterface` and Makie are weak dependencies. Loading them adds
-automatic differentiation for custom scalar objectives and direct plotting of
+`DifferentiationInterface` is a weak dependency. Loading it adds automatic
+differentiation for custom scalar objectives; its isolated test environment
+lives in `test/differentiation`.
+
+Plotting is deliberately outside the core package. The separate
+[`TiliaMakieRecipes`](TiliaMakieRecipes) package provides Makie recipes for
 confusion matrices, ROC results, cross-validation scores, and optimization
-traces. Their isolated test environments live in `test/differentiation` and
-`test/visualization`.
+traces.
 
 ## Benchmarks and documentation
 

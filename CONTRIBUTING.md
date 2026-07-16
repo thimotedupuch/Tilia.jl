@@ -14,8 +14,9 @@ Run the test suite with:
 julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-Reactant, DifferentiationInterface, and Makie tests use the persistent
-repository environments under `test/`; do not add them as hard dependencies.
+Reactant and DifferentiationInterface tests use the persistent repository
+environments under `test/`; do not add them as hard dependencies. Makie recipe
+tests belong to the separate `TiliaMakieRecipes` package.
 Keep Reactant precompilation serial with `JULIA_NUM_PRECOMPILE_TASKS=1`.
 
 Benchmarks run from the persistent `benchmark` environment. Report compilation

@@ -115,12 +115,10 @@ version = "0.1.0-DEV"
 
     [deps.Tilia.extensions]
     TiliaDifferentiationExt = "DifferentiationInterface"
-    TiliaMakieExt = "Makie"
     TiliaReactantExt = "Reactant"
 
     [deps.Tilia.weakdeps]
     DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
     Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 
 [[deps.Unicode]]

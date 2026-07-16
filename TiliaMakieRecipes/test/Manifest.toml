@@ -2,7 +2,7 @@
 
 julia_version = "1.12.4"
 manifest_format = "2.0"
-project_hash = "4912e962ac3a745a284c932fb0d1aa8719ebe957"
+project_hash = "50c28c66b64d2bb0f790c0a990973dd1f8e173a4"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1131,9 +1131,9 @@ version = "0.5.1+0"
 
 [[deps.Roots]]
 deps = ["Accessors", "CommonSolve", "Printf"]
-git-tree-sha1 = "a7caaf7ba8cf307112ca443784d1b56b4a591455"
+git-tree-sha1 = "7fb25a964849d90a0446366cdefca822e0e84900"
 uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
-version = "3.0.5"
+version = "3.0.6"
 
     [deps.Roots.extensions]
     RootsChainRulesCoreExt = "ChainRulesCore"
@@ -1388,13 +1388,17 @@ version = "0.1.0-DEV"
 
     [deps.Tilia.extensions]
     TiliaDifferentiationExt = "DifferentiationInterface"
-    TiliaMakieExt = "Makie"
     TiliaReactantExt = "Reactant"
 
     [deps.Tilia.weakdeps]
     DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
-    Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
     Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
+[[deps.TiliaMakieRecipes]]
+deps = ["Makie", "Tilia"]
+path = ".."
+uuid = "75f7b872-5add-4cf8-8e67-29cba6c9988b"
+version = "0.1.0-DEV"
 
 [[deps.TranscodingStreams]]
 git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"

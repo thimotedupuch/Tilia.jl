@@ -11,7 +11,7 @@ Build a unified, Julia-native classical machine-learning stack with:
 - minimal hard dependencies;
 - native implementations of algorithms;
 - an internal graph execution model;
-- optional accelerator, differentiation, and visualization integrations.
+- optional accelerator and differentiation integrations.
 
 The project is not intended to be an adapter layer over the existing Julia machine-learning ecosystem. Existing packages may be used as references for algorithms, validation, and numerical behavior, but the production implementation should be owned by this project.
 
@@ -189,15 +189,16 @@ Use Julia package extensions for:
 [weakdeps]
 Reactant = "..."
 DifferentiationInterface = "..."
-Makie = "..."
 
 [extensions]
 TiliaReactantExt = "Reactant"
 TiliaDifferentiationExt = "DifferentiationInterface"
-TiliaMakieExt = "Makie"
 ```
 
 These integrations remain in the same repository.
+
+Makie recipes live in the separate `TiliaMakieRecipes` package and must not be
+a Tilia weak dependency or extension.
 
 ## 4.4 Dependencies to avoid
 
@@ -386,8 +387,7 @@ Tilia.jl/
 │
 ├── ext/
 │   ├── TiliaReactantExt/
-│   ├── TiliaDifferentiationExt/
-│   └── TiliaMakieExt/
+│   └── TiliaDifferentiationExt/
 │
 ├── test/
 │   ├── runtests.jl
@@ -1033,7 +1033,7 @@ Differentiate numerical objectives and graph operations.
 
 ---
 
-## 15. Makie integration
+## 15. Makie recipes
 
 The core should produce semantic result types.
 
@@ -1052,9 +1052,10 @@ ClusterResult
 TreeLayout
 ```
 
-The Makie extension should define recipes for these types.
+The separate `TiliaMakieRecipes` package should define recipes for these types.
 
-Do not make plotting part of the core runtime.
+Do not make plotting part of the core package, including through a package
+extension or weak dependency.
 
 ---
 
@@ -1514,7 +1515,7 @@ CI should include:
 - formatting and static checks;
 - package quality checks;
 - optional Reactant tests;
-- optional Makie recipe tests;
+- separate `TiliaMakieRecipes` package tests;
 - persistence compatibility tests.
 
 Use separate jobs for optional integrations so core CI remains lightweight.

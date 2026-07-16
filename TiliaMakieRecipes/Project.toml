@@ -1,0 +1,19 @@
+name = "TiliaMakieRecipes"
+uuid = "75f7b872-5add-4cf8-8e67-29cba6c9988b"
+authors = ["Tilia contributors"]
+version = "0.1.0-DEV"
+
+[deps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Tilia = "86c3e6f3-4b72-4d3d-a746-6fd3a5ac49ca"
+
+[compat]
+julia = "1.10"
+Makie = "0.24"
+Tilia = "0.1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

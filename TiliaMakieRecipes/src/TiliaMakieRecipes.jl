@@ -1,4 +1,4 @@
-module TiliaMakieExt
+module TiliaMakieRecipes
 
 using Tilia
 using Makie
