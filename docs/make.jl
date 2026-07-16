@@ -17,6 +17,7 @@ makedocs(
         "Model numerical contracts" => "model-semantics.md",
         "Metrics" => "metrics.md",
         "Model selection" => "model-selection.md",
+        "Visualization with Makie" => "visualization.md",
         "Acceleration" => "acceleration.md",
         "Differentiation" => "differentiation.md",
         "Persistence" => "persistence.md",
