@@ -6,6 +6,11 @@ same lifecycle: declare, `fit`, then `predict`, `predict_proba`, `transform`, or
 hyperparameters; [Model numerical contracts](model-semantics.md) documents
 objectives, convergence, regularization, and conventions.
 
+The tables below are a task-oriented map of the built-in estimators. They are
+not a compatibility matrix: use `capabilities` or `model_catalog` when sparse
+input, observation weights, probabilities, missing values, or incremental
+updates are requirements.
+
 ## Choosing by task
 
 ### Regression
@@ -86,6 +91,11 @@ The operation is determined by the fitted estimator's task:
 | `partial_fit(...)` | Incremental update where declared |
 | `report(fitted)` | Structured fit and execution diagnostics |
 
+Only `SGDClassifier` and `SGDRegressor` currently support `partial_fit`. It can
+start from a specification or continue an existing fitted SGD model. Pass the
+complete set with `classes=...` when a classifier's first batch does not contain
+every class that later batches may contain.
+
 Tilia raises an explicit error when an operation is not supported. Check first
 when writing generic code:
 
@@ -123,7 +133,7 @@ streams, and compilation cache:
 
 ```julia
 context = FitContext(
-    root_seed=42,
+    seed=42,
     numerics=NumericsPolicy(),
     backend=CPUBackend(),
 )
