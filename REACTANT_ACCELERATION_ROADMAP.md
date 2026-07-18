@@ -2,20 +2,13 @@
 
 ## Status
 
-Tilia's Reactant extension is currently a proof of concept, not a general
-accelerated backend. It demonstrates that a fitted semantic pipeline can call a
-compiled Reactant probability kernel, preserve CPU reference behavior, report
-transfers and compilation, and fail or fall back explicitly.
-
-The supported path is intentionally narrow:
-
-```julia
-Chain(Standardize(), LogisticRegression())
-```
-
-with a dense `Float32` or `Float64` matrix. Fitting still occurs on CPU. The
-extension compiles inference and evaluates a compiled logistic objective, but
-does not run the training solver on the device.
+Tilia's Reactant extension now provides numerical capability checks,
+mixed-device inference regions, device-resident prediction, bounded
+specialization caching, and initial accelerated fitting for dense `Float32`
+and `Float64` pipelines. CPU implementations remain the reference,
+unsupported work is explicit, and persistence stores the portable CPU graph.
+Logistic Newton and regularized ridge Cholesky fitting are device-resident for
+their documented supported graph shapes.
 
 This document records the most important limitations visible in the current
 implementation and proposes a coherent order of work. It should be updated as
@@ -55,16 +48,13 @@ Consequences include:
 - no reusable per-operation lowering registry;
 - duplicated knowledge between core graph contracts and the extension.
 
-### 3. Training is not accelerated
+### 3. Training acceleration status
 
-The CPU graph is fitted before the Reactant wrapper is constructed. Means,
-variances, logistic statistics, gradients, Hessians, and Newton updates remain
-on CPU. `_compile_objective` evaluates the final objective once on device but
-does not participate in optimization.
-
-The report correctly records `host_fit_nodes`, but the current feature should
-be described as compiled inference with an objective experiment—not accelerated
-model fitting.
+Supported standardization, weighted ridge sufficient statistics, and logistic
+Newton optimization now execute through Reactant. Unsupported fit primitives
+remain explicitly reported in `host_fit_nodes`; supported linear logistic
+and ridge graphs construct portable placeholders and no longer perform duplicate
+CPU transform or solver fits before device fitting.
 
 ### 4. Host/device ownership is inefficient
 
@@ -104,19 +94,20 @@ support:
 - incremental prediction buffers;
 - a documented policy for mixed input and parameter floating types.
 
-Observation weights reach the compiled objective experiment, but they do not
-make fitting device-resident.
+Observation weights participate in device-resident logistic and ridge fitting
+for the documented supported graphs.
 
-### 7. Device selection relies on mutable global state
+### 7. Device selection uses synchronized mutable global state
 
 When a non-`:auto` device is requested, fitting calls
-`Reactant.set_default_backend`. Changing a process-wide default during a fit is
-unsafe for concurrent fits, libraries sharing Reactant, and tests that assume
-device isolation.
+`Reactant.set_default_backend`. Tilia serializes every Reactant fit and
+prediction through a process-local reentrant lock and restores the previous
+backend in `finally`. Concurrent fitted objects, shared-cache fits, parameter
+isolation, and exact backend restoration are tested.
 
-Device/backend selection should be carried by compiled objects or an explicit
-Reactant context wherever the Reactant API allows it. If global mutation is
-unavoidable, it needs synchronization, restoration, and documentation.
+An explicit per-compiled-object Reactant context remains preferable if the API
+supports one in the future. Tilia's lock cannot coordinate unrelated external
+code that mutates Reactant's global backend directly.
 
 ### 8. Diagnostics are useful but approximate
 
@@ -157,6 +148,12 @@ These items should be completed before expanding model coverage.
 
 ### P0.1 Separate executable caching from fitted parameters
 
+**Completed.** The shared cache stores only compiled executables. Current
+fitted parameters are supplied on every execution, and the cache signature
+includes lowering version, requested and resolved backend, numerical policy,
+element types, and static shapes. Regression tests cover distinct fitted
+models sharing a cache and parameter changes after compilation.
+
 Refactor cache entries so they contain only reusable compiled code and
 shape/type/backend metadata. Store device parameters on the fitted Reactant
 object or pass current parameters on every call.
@@ -172,6 +169,12 @@ Acceptance criteria:
 
 ### P0.2 Define phase-specific backend capability queries
 
+**Completed.** Reactant capability decisions consume the backend-neutral
+`NumericalExecutionGraph` and record support per lowered primitive and phase.
+Unsupported errors identify the primitive and phase, fit and inference
+capabilities are retained in the report, and a standalone logistic numerical
+graph is supported without a preceding synthetic transform.
+
 Replace the two-node `_supported` predicate with capability checks for
 individual lowered operations and phases (`:fit`, `:predict`, and
 `:predict_proba`). The existing `NumericalExecutionGraph` should be the common
@@ -185,6 +188,12 @@ Acceptance criteria:
 - standalone supported nodes no longer require a synthetic two-node pattern.
 
 ### P0.3 Make reports unambiguous
+
+**Completed.** Reports contain explicit fit and inference placement, separate
+compilation, host conversion, device execution, and synchronization/result
+materialization timing buckets, and transfer accounting labeled as a
+`summarysize`-based host estimate with actual device bytes reported as
+unavailable. CPU fallback retains the requested Reactant backend and reason.
 
 Report fit and inference placement separately. Define whether each timer
 includes conversion and synchronization, and distinguish estimated host bytes
@@ -201,6 +210,14 @@ Acceptance criteria:
 
 ### P0.4 Expand correctness tests before performance work
 
+**Completed.** Coverage includes Float32 and Float64, binary and
+multiclass inference, weighted objective agreement, distinct-model shared
+caches, multiple and large batch shapes, an explicit empty-batch error policy,
+feature mismatch, concurrent predictions, explicit CPU device selection, and
+fallback behavior. A hardware-conditional contract validates GPU probability
+agreement when available and compilation-failure fallback otherwise. Explicit
+backend selection is synchronized and restores the prior Reactant backend.
+
 Add Float32/Float64, binary/multiclass, weighted objective, distinct-model cache,
 multiple batch shapes, empty-batch policy, large batch, concurrency, explicit
 device, compilation failure, and fallback tests. GPU tests may be conditional
@@ -212,6 +229,20 @@ Once P0 is complete, broaden inference through small composable operations
 rather than adding another hard-coded model pattern.
 
 ### P1.1 Implement a lowering registry for common primitives
+
+**Completed.** A model/primitive lowering registry composes linear
+regions from identity, standardization, unclipped min--max scaling, PCA
+(including whitening), and truncated SVD with binary/multiclass logistic and
+linear/ridge prediction heads. Transform parameters are folded into generic
+effective coefficient and intercept arrays rather than retained in a
+model-pattern-specific executable. CPU-reference tests cover standalone and
+composed Float32 regression/classification paths, decomposition projections,
+clipped min--max values outside the fitted range, and binary/multiclass
+device-side class selection with first-index tie behavior. Numeric imputation
+is lowered as a device `select_fill` using boundary-encoded values and a
+missing mask. DAG-aware lowering folds select/gather and concatenate branches
+into effective prediction maps, with CPU-reference coverage for parallel
+standardization/PCA regions.
 
 Prioritize operations already represented in the numerical graph:
 
@@ -229,6 +260,19 @@ and numerical tolerance.
 
 ### P1.2 Partition mixed graphs
 
+**Completed.** With `fallback=:cpu`, graphs are partitioned into
+maximal supported Reactant regions separated by CPU transforms. The
+authoritative CPU graph is fitted once; transform-only Reactant regions,
+device-to-host transitions, CPU nodes, host-to-device transitions, and the
+final prediction region execute in order. Placement and both transfer
+directions appear on numerical primitives and in phase-specific reports.
+Tests cover both a CPU prefix followed by an adjacent Reactant suffix and two
+Reactant regions separated by RobustScale, with CPU agreement and fitted-node
+identity across predictions. Branched DAG coverage accelerates one branch and
+the final head around a CPU branch/concatenation, deriving transfers from real
+graph edges. Clipped min--max transform regions cover nonlinear device regions
+separated from other supported regions by a CPU transform.
+
 Use device placement to form maximal supported Reactant regions separated by
 explicit transfers. `fallback=:cpu` should permit unsupported regions to run on
 CPU without abandoning acceleration for all supported regions.
@@ -243,6 +287,16 @@ Acceptance criteria:
 
 ### P1.3 Introduce device-resident prediction paths
 
+**Completed for supported whole-graph inference.** Classification `predict` compiles binary selection or
+multiclass first-index argmax into the Reactant program and transfers only the
+resulting index vector before mapping indices to arbitrary host class labels.
+Concrete Reactant matrices are accepted without re-uploading the input, and
+`predict_proba` plus regression `predict` accept `output=:host` or `:device`.
+Classification labels intentionally remain host-side because their Julia types
+may not be device-representable. Reports expose last input/output residency,
+materialization timing, and estimated transfers. Mixed graphs still materialize
+at required CPU boundaries.
+
 Keep fitted parameters with the fitted model, support device arrays as input
 where practical, and allow a caller to request host or device output. Implement
 class selection on device so `predict` need not transfer a full probability
@@ -252,6 +306,14 @@ The public API should remain backend-neutral; device-specific controls belong
 in `FitContext`, an execution option, or an explicitly documented optional API.
 
 ### P1.4 Define a shape specialization policy
+
+**Completed.** All dimensions, including batch size, are documented static
+signature components. `CompilationCache` has configurable bounded LRU-style
+eviction (default capacity 32), and reports compilation count, cache hits,
+current size, capacity, and evictions. Regression tests specialize across
+eight batch sizes and prove bounded growth. Accelerator benchmarks warm the
+exact signature before steady-state samples and print the specialization and
+cache policy.
 
 Investigate Reactant support for dynamic leading batch dimensions. If dynamic
 batches are not viable, define bounded specialization and cache eviction.
@@ -270,12 +332,47 @@ placement infrastructure.
 
 ### P2.1 Device-resident sufficient statistics
 
+**Completed for the prioritized statistics.** Eligible linear graphs beginning with `Standardize` compile
+population mean and second-moment reductions on Reactant using the configured
+accumulation type. That fitted transform is authoritative, and downstream
+nodes are refit once against its output rather than retaining coefficients
+from shadow CPU statistics. Fit placement, timings, transfer estimates,
+accumulation type, and deterministic-reduction policy are reported. Tests cover
+ill-scaled `Float32` input with `Float64` accumulation and a weighted downstream
+ridge fit. Weighted ridge now computes centering, Gram and cross-product
+statistics, the regularized Cholesky solve, intercept recovery, and residual
+norm in one Reactant program; centered/intercepted and raw/no-intercept paths
+are tested. Logistic gradient and Hessian statistics now remain device-side
+inside the coherent Newton optimizer. QR/SVD linear regression deliberately remains on CPU because a
+normal-equation substitution would change solver semantics. Logistic
+sufficient-statistic transfers are therefore avoided.
+
 Start with standardization reductions and linear/logistic sufficient
 statistics. Preserve Tilia's accumulation type, deterministic-reduction, and
 weight semantics. Compare results against CPU for ill-scaled and weighted data,
 not only small well-conditioned matrices.
 
 ### P2.2 Accelerated logistic optimization
+
+**Completed.** Binary and multiclass one-vs-rest logistic fits run a coherent
+Reactant Newton program: stable sigmoid/objective evaluation, weighted
+gradient, Hessian construction, Cholesky solve, convergence masking, and all
+21 Armijo candidates execute without per-iteration host transfers. The Armijo
+candidates are evaluated as one batched tensor and the largest acceptable
+scale reproduces the CPU halving order. Final parameters, convergence,
+iteration count, gradient norm, and the complete bounded objective history
+materialize once per class. Weighted binary and three-class CPU-reference tests
+pass. Workload-range performance evidence remains part of the broader
+acceleration benchmark gate.
+
+Current Reactant-CPU evidence (Julia 1.12.4, Reactant 0.2.273, 16 features,
+one warm-fit sample) is intentionally negative: at 100 observations the warm
+fit speedup is `0.00088×`, and at 1,000 observations it is `0.069×`. Steady-state
+prediction takes about 119 μs and 161 μs respectively, versus CPU's 4.9 μs and
+34.7 μs. These figures document that Reactant CPU is a correctness/development
+target for these shapes, not a performance claim. The acceptance gate remains
+open pending measurements on a supported accelerator and a beneficial workload
+range.
 
 Move objective, gradient, Hessian or Hessian-vector operations, and solver
 iterations into a coherent device loop. Avoid a design that transfers a
@@ -292,6 +389,13 @@ Acceptance criteria:
 
 ### P2.3 Add model families by shared primitives
 
+**In progress.** Ridge regression with positive regularization and the
+documented Cholesky solver now has device-resident weighted fitting for both
+intercepted and raw paths. It reuses reduction and Cholesky primitives already
+established by P2.1 and P2.2, avoids a shadow CPU ridge solve, and reports
+`solver_backend=:reactant`. General
+linear regression, decomposition fitting, SGD models, and MLP fitting remain.
+
 After logistic training, prioritize models that reuse established operations:
 
 1. linear and ridge regression;
@@ -307,16 +411,25 @@ clear Reactant lowering and performance case exists.
 
 ### Device and concurrency safety
 
-- remove unsynchronized global backend mutation;
-- support concurrent fitted objects and predictions;
-- document thread safety of caches and device buffers;
-- test CPU and available GPU backends in isolated processes.
+**Completed within the current Reactant backend-selection API.** Global backend
+selection is synchronized and restored, fitted-object execution is serialized,
+compilation caches are locked and bounded, and concurrent fits/predictions are
+covered. CPU is tested in-process; unavailable GPU targets retain explicit
+fallback/error coverage. Truly isolated CPU/GPU CI remains deployment work.
+
+- retain synchronization until Reactant exposes per-object backend contexts;
+- test available GPU backends in isolated CI processes.
 
 ### Memory and lifecycle management
 
-- account for device parameter, executable, input, and output memory;
-- provide bounded cache eviction and cleanup;
-- avoid retaining model parameters only because a compilation cache survives;
+**Partially completed.** Compilation caches are bounded LRU stores containing
+executables only, expose thread-safe `empty!` cleanup, and report an atomic
+host-retained size estimate. Reports separate the portable model, compilation
+cache wrappers, retained device parameters (zero), and unavailable executable
+or peak device measurements instead of presenting transfer estimates as memory
+usage. Measured peak host/device memory remains pending.
+
+- account for measured device executable, input, and output memory;
 - benchmark peak host and device memory.
 
 ### Benchmark matrix
@@ -338,6 +451,12 @@ threading, batch shape, warm-up, synchronization, and whether transfer time is
 included.
 
 ### Persistence and deployment
+
+**Completed for portable model persistence.** Saving a Reactant-fitted graph
+serializes only its authoritative `FittedGraph`; compiled executables, device
+arrays, locks, and cache state are excluded. Accelerator tests load the artifact
+as a CPU-portable graph, verify exact parameter/prediction round trips, and show
+that clearing the original cache cannot affect the loaded model.
 
 Continue saving the authoritative CPU graph by default. If compiled artifact
 persistence is later considered, it must be explicitly versioned by platform,

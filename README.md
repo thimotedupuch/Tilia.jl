@@ -24,8 +24,8 @@ training schema, and a structured report.
 ## Optional Reactant execution
 
 Reactant is a weak dependency and is not installed or loaded by the core
-package. In an environment containing Reactant, dense standardization and
-logistic inference can be compiled explicitly:
+package. In an environment containing Reactant, supported dense preprocessing,
+projection, and linear/logistic inference regions can be compiled explicitly:
 
 ```julia
 using Tilia, Reactant
@@ -37,12 +37,21 @@ predict_proba(accelerated, Xnew)
 report(accelerated)
 ```
 
-The report records compilation and execution time, transferred bytes, device
-placement, cache hits, unsupported operations, and fallbacks. The prototype
-accelerates standardization, matrix multiplication, probabilities, and the
-logistic objective. Fit-time statistics and Newton iterations remain on CPU
-and are reported as such. `ReactantBackend(fallback=:cpu)` opts into an
-explicit host fallback; the default is to raise `UnsupportedBackendError`.
+Device-resident matrices can flow into inference directly, and probabilities
+or regression values can remain on-device with `output=:device`. Classification
+labels remain host values; request device probabilities for on-device chaining.
+
+The report records phase-specific timing, estimated transfer bytes, device
+placement, bounded-cache behavior, unsupported operations, and fallbacks.
+Standardization sufficient statistics are accelerated for eligible linear
+graphs. Weighted ridge normal-equation statistics are also device-computed;
+the Cholesky solve and remaining fit-time algorithms stay on CPU and are
+reported as such.
+
+Supported logistic heads use a coherent device Newton loop, including weighted
+gradient/Hessian evaluation, Cholesky solves, and Armijo damping.
+`ReactantBackend(fallback=:cpu)` opts into explicit CPU execution for
+unsupported regions; the default is to raise `UnsupportedBackendError`.
 
 Accelerator tests use their own environment:
 

@@ -46,6 +46,10 @@ NumericalExecutionGraph(phase::Symbol, nodes::Vector{NumericalExecutionNode},
 function _primitive_operations(model, phase::Symbol, inference_operation::Symbol)
     if model isa Standardize
         return phase === :fit ? [:reduce_mean, :center, :reduce_variance, :normalize] : [:normalize]
+    elseif model isa MinMaxScale
+        operations = phase === :fit ? [:reduce_min, :reduce_max, :affine] : [:affine]
+        model.clip && push!(operations, :clamp)
+        return operations
     elseif model isa Impute
         return phase === :fit ? [:missing_mask, :reduce_statistic, :select_fill] :
                                 [:missing_mask, :select_fill]
@@ -58,7 +62,9 @@ function _primitive_operations(model, phase::Symbol, inference_operation::Symbol
     elseif model isa Concatenate
         return [:concatenate]
     elseif model isa Union{PCA,TruncatedSVD}
-        return phase === :fit ? [:center, :svd, :select_components] : [:center, :matmul]
+        operations = phase === :fit ? [:center, :svd, :select_components] : [:center, :matmul]
+        phase === :inference && model isa PCA && model.whiten && push!(operations, :normalize)
+        return operations
     elseif model isa MeanRegressor
         return phase === :fit ? [:weighted_reduction] : [:fill]
     elseif model isa Union{LinearRegression,RidgeRegression}

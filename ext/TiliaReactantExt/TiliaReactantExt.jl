@@ -2,6 +2,7 @@ module TiliaReactantExt
 
 using Tilia
 using Reactant
+using LinearAlgebra
 
 include("ops/reductions.jl")
 include("ops/linear_algebra.jl")

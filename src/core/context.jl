@@ -16,8 +16,38 @@ end
 mutable struct CompilationCache
     entries::Dict{UInt64,Any}
     lock::ReentrantLock
+    order::Vector{UInt64}
+    max_entries::Int
+    compilations::Int
+    evictions::Int
 end
-CompilationCache() = CompilationCache(Dict{UInt64,Any}(), ReentrantLock())
+function CompilationCache(; max_entries::Integer=32)
+    max_entries > 0 || throw(InvalidHyperparameterError(
+        "CompilationCache max_entries must be positive."))
+    CompilationCache(Dict{UInt64,Any}(), ReentrantLock(), UInt64[],
+                     Int(max_entries), 0, 0)
+end
+CompilationCache(entries::Dict{UInt64,Any}, lock::ReentrantLock) =
+    CompilationCache(entries, lock, collect(keys(entries)), max(length(entries), 32),
+                     length(entries), 0)
+
+"""Release all compiled entries retained by a compilation cache."""
+function Base.empty!(cache::CompilationCache)
+    lock(cache.lock) do
+        empty!(cache.entries)
+        empty!(cache.order)
+    end
+    cache
+end
+
+function _compilation_cache_snapshot(cache::CompilationCache)
+    lock(cache.lock) do
+        (size=length(cache.entries), capacity=cache.max_entries,
+         compilations=cache.compilations, evictions=cache.evictions,
+         retained_host_bytes=Base.summarysize(cache.entries) +
+                             Base.summarysize(cache.order))
+    end
+end
 
 """Numerical defaults shared by all estimators."""
 struct NumericsPolicy{T<:AbstractFloat,A<:AbstractFloat}
