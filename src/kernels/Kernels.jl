@@ -23,6 +23,7 @@ export clip_values
 export normalize_rows, squared_euclidean, euclidean, manhattan, cosine_distance
 export pairwise_distances, pairwise_distance_blocks
 export mean_squared_error, root_mean_squared_error, log_loss
+export mean_absolute_error, huber_loss, quantile_loss
 export scale_columns, scale_columns!
 export gram_matrix
 export covariance_matrix, weighted_covariance, contingency_matrix, class_counts, histogram_counts

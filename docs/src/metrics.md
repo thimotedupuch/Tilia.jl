@@ -12,11 +12,16 @@ predictions = predict(fitted_regressor, Xtest)
 
 mean_squared_error(ytest, predictions)
 root_mean_squared_error(ytest, predictions)
+mean_absolute_error(ytest, predictions)
+huber_loss(ytest, predictions; delta=1.35)
+quantile_loss(ytest, predictions; quantile=0.9)
 ```
 
 These public functions use the same centralized kernels as Tilia's model and
 benchmark code, preventing metric semantics from diverging between internal
-and user-facing paths.
+and user-facing paths. Every regression loss accepts nonnegative observation
+`weights`. `huber_loss` uses a positive transition width `delta`, while
+`quantile_loss` accepts quantiles in the closed interval from zero to one.
 
 ## Classification labels
 

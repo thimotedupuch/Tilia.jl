@@ -1,0 +1,18 @@
+"""Compositional and meta-estimators."""
+
+include("meta/common.jl")
+include("meta/one_vs_rest.jl")
+include("meta/one_vs_one.jl")
+include("meta/multi_output_regressor.jl")
+include("meta/multi_output_classifier.jl")
+include("meta/classifier_chain.jl")
+include("meta/bagging_regressor.jl")
+include("meta/bagging_classifier.jl")
+include("meta/voting_regressor.jl")
+include("meta/voting_classifier.jl")
+include("meta/stacking_regressor.jl")
+include("meta/stacking_classifier.jl")
+include("meta/transformed_target.jl")
+include("meta/calibrated_classifier.jl")
+include("meta/threshold_selection.jl")
+include("meta/composed_capabilities.jl")

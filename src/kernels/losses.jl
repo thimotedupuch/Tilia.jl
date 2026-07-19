@@ -13,6 +13,28 @@ end
 root_mean_squared_error(targets, predictions; weights=nothing) =
     sqrt(mean_squared_error(targets, predictions; weights=weights))
 
+function mean_absolute_error(targets, predictions; weights=nothing)
+    _check_predictions(targets, predictions)
+    errors = abs.(predictions .- targets)
+    weights === nothing ? mean(errors) : weighted_mean(errors, weights)
+end
+
+function huber_loss(targets, predictions; delta=1.35, weights=nothing)
+    _check_predictions(targets, predictions)
+    delta > 0 || throw(ArgumentError("Huber loss delta must be positive."))
+    diffs = abs.(predictions .- targets)
+    errors = map(d -> d <= delta ? 0.5 * d^2 : delta * (d - 0.5 * delta), diffs)
+    weights === nothing ? mean(errors) : weighted_mean(errors, weights)
+end
+
+function quantile_loss(targets, predictions; quantile=0.5, weights=nothing)
+    _check_predictions(targets, predictions)
+    zero(quantile) <= quantile <= one(quantile) || throw(ArgumentError("quantile must be in [0, 1]."))
+    diffs = targets .- predictions
+    errors = map(d -> d >= zero(d) ? quantile * d : (quantile - one(quantile)) * d, diffs)
+    weights === nothing ? mean(errors) : weighted_mean(errors, weights)
+end
+
 """Multiclass logarithmic loss for an observation-by-class probability matrix."""
 function log_loss(labels::AbstractVector{<:Integer}, probabilities::AbstractMatrix; epsilon=nothing)
     length(labels) == size(probabilities, 1) || throw(DimensionMismatch(

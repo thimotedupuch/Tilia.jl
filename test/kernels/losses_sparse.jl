@@ -6,6 +6,13 @@ using Tilia.Kernels
     @test mean_squared_error(targets, predictions) == 5 / 3
     @test root_mean_squared_error(targets, predictions) ≈ sqrt(5 / 3)
     @test mean_squared_error(targets, predictions; weights=[1.0, 0.0, 1.0]) == 0.5
+    @test mean_absolute_error(targets, predictions) ≈ 1.0
+    @test mean_absolute_error(targets, predictions; weights=[1.0, 0.0, 1.0]) ≈ 0.5
+    @test huber_loss(targets, predictions; delta=1.5) ≈ (0.0 + 1.875 + 0.5) / 3
+    @test quantile_loss(targets, predictions; quantile=0.75) ≈ (0.0 + 0.5 + 0.75) / 3
+    @test_throws ArgumentError huber_loss(targets, predictions; delta=-1.0)
+    @test_throws ArgumentError quantile_loss(targets, predictions; quantile=1.5)
+
     probabilities = [0.8 0.2; 0.25 0.75]
     @test log_loss([1, 2], probabilities) ≈ -mean(log.([0.8, 0.75]))
     @test_throws ArgumentError log_loss([1, 2], [0.8 0.3; 0.2 0.8])

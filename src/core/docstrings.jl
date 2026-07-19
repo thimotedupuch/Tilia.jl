@@ -49,6 +49,32 @@ fitted = fit(MeanRegressor(), [1.0;; 2.0], [1.0, 3.0])
 
 @doc """Mean squared prediction error, optionally weighted.""" mean_squared_error
 @doc """Square root of `mean_squared_error`, optionally weighted.""" root_mean_squared_error
+@doc """Mean absolute prediction error, optionally weighted.""" mean_absolute_error
+@doc """Huber prediction loss with positive transition width `delta`, optionally weighted.""" huber_loss
+@doc """Pinball loss for a `quantile` in `[0, 1]`, optionally weighted.""" quantile_loss
+
+@doc """Penalized Poisson regression with log or identity link.""" PoissonRegression
+@doc """Penalized Gamma regression for strictly positive targets.""" GammaRegression
+@doc """Penalized Tweedie regression with configurable power and link.""" TweedieRegression
+@doc """Smoothed linear quantile regression.""" QuantileRegression
+@doc """Robust linear regression with joint Huber scale estimation.""" HuberRegression
+@doc """Robust regression by repeated random-sample consensus.""" RANSACRegression
+@doc """Robust linear regression by sampled Theil--Sen estimates.""" TheilSenRegression
+@doc """Proportional-odds regression for deterministically ordered classes.""" OrdinalRegression
+@doc """One-versus-rest multiclass reduction around a classifier.""" OneVsRestClassifier
+@doc """One-versus-one multiclass reduction around a classifier.""" OneVsOneClassifier
+@doc """Fit one regression estimator per target column.""" MultiOutputRegressor
+@doc """Fit one classification estimator per target column.""" MultiOutputClassifier
+@doc """Fit chained classifiers whose earlier predictions augment later inputs.""" ClassifierChain
+@doc """Aggregate regressors fitted on sampled observations and features.""" BaggingRegressor
+@doc """Aggregate classifiers fitted on sampled observations and features.""" BaggingClassifier
+@doc """Average predictions from multiple regression estimators.""" VotingRegressor
+@doc """Combine hard votes or probabilities from multiple classifiers.""" VotingClassifier
+@doc """Train a final regressor on out-of-fold base predictions.""" StackingRegressor
+@doc """Train a final classifier on out-of-fold base predictions.""" StackingClassifier
+@doc """Fit a regressor on transformed targets and invert its predictions.""" TransformedTargetRegressor
+@doc """Calibrate classifier probabilities with out-of-fold Platt scaling.""" CalibratedClassifier
+@doc """Choose a binary decision threshold from out-of-fold probabilities.""" ThresholdSelectionWrapper
 
 const PUBLIC_EXAMPLE_NAMES = Set{Symbol}()
 const PUBLIC_EXAMPLES = Dict{Symbol,String}()
@@ -118,6 +144,28 @@ end
 @_example LinearRegression "model = LinearRegression(solver=:qr)"
 @_example RidgeRegression "model = RidgeRegression(lambda=1.0)"
 @_example LogisticRegression "model = LogisticRegression(lambda=1.0)"
+@_example PoissonRegression "model = PoissonRegression(lambda=0.1)"
+@_example GammaRegression "model = GammaRegression(lambda=0.1)"
+@_example TweedieRegression "model = TweedieRegression(power=1.5)"
+@_example QuantileRegression "model = QuantileRegression(quantile=0.9)"
+@_example HuberRegression "model = HuberRegression(epsilon=1.35)"
+@_example TheilSenRegression "model = TheilSenRegression(max_subpopulations=1000)"
+@_example RANSACRegression "model = RANSACRegression(base_estimator=LinearRegression())"
+@_example OrdinalRegression "model = OrdinalRegression(lambda=0.1)"
+@_example OneVsRestClassifier "model = OneVsRestClassifier(LogisticRegression())"
+@_example OneVsOneClassifier "model = OneVsOneClassifier(LogisticRegression())"
+@_example MultiOutputClassifier "model = MultiOutputClassifier(LogisticRegression())"
+@_example MultiOutputRegressor "model = MultiOutputRegressor(RidgeRegression())"
+@_example ClassifierChain "model = ClassifierChain(LogisticRegression())"
+@_example BaggingClassifier "model = BaggingClassifier(DecisionTreeClassifier())"
+@_example BaggingRegressor "model = BaggingRegressor(DecisionTreeRegressor())"
+@_example VotingClassifier "model = VotingClassifier(LogisticRegression(), DecisionTreeClassifier())"
+@_example VotingRegressor "model = VotingRegressor(RidgeRegression(), DecisionTreeRegressor())"
+@_example StackingClassifier "model = StackingClassifier((LogisticRegression(), DecisionTreeClassifier()), LogisticRegression())"
+@_example StackingRegressor "model = StackingRegressor((RidgeRegression(), DecisionTreeRegressor()), RidgeRegression())"
+@_example TransformedTargetRegressor "model = TransformedTargetRegressor(RidgeRegression(); func=log1p, inverse_func=expm1)"
+@_example CalibratedClassifier "model = CalibratedClassifier(LogisticRegression())"
+@_example ThresholdSelectionWrapper "model = ThresholdSelectionWrapper(LogisticRegression(); metric=:f1)"
 @_example Lasso "model = Lasso(lambda=0.1)"
 @_example ElasticNet "model = ElasticNet(lambda=0.1, l1_ratio=0.5)"
 @_example SparseLogisticRegression "model = SparseLogisticRegression(lambda=0.1)"
@@ -177,6 +225,9 @@ end
 @_example log_loss "log_loss([1, 2], [0.8 0.2; 0.1 0.9])"
 @_example mean_squared_error "mean_squared_error([1.0, 2.0], [1.0, 3.0])"
 @_example root_mean_squared_error "root_mean_squared_error([1.0, 2.0], [1.0, 3.0])"
+@_example mean_absolute_error "mean_absolute_error([1.0, 2.0], [1.0, 3.0])"
+@_example huber_loss "huber_loss([1.0, 2.0], [1.0, 3.0]; delta=1.35)"
+@_example quantile_loss "quantile_loss([1.0, 2.0], [1.0, 3.0]; quantile=0.9)"
 @_example train_test_split "train_test_split(randn(10, 2), randn(10); test_size=0.2)"
 @_example KFold "cv = KFold(5; shuffle=true, seed=42)"
 @_example split "folds = split(KFold(3), 12)"

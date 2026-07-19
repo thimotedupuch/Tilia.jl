@@ -19,6 +19,8 @@ updates are requirements.
 |:--|:--|
 | Baseline and linear | `MeanRegressor`, `LinearRegression`, `RidgeRegression` |
 | Sparse and incremental | `Lasso`, `ElasticNet`, `SGDRegressor` |
+| Generalized linear | `PoissonRegression`, `GammaRegression`, `TweedieRegression` |
+| Robust and distributional | `QuantileRegression`, `HuberRegression`, `TheilSenRegression`, `RANSACRegression` |
 | Structured linear | `MARSRegressor`, `PartialLeastSquaresRegression` |
 | Neighbors and kernels | `KNeighborsRegressor`, `KernelRidgeRegression`, `SupportVectorRegressor` |
 | Trees and ensembles | `DecisionTreeRegressor`, `RandomForestRegressor`, `ExtraTreesRegressor`, `HistGradientBoostingRegressor` |
@@ -31,11 +33,21 @@ predictions = predict(fitted, Xtest)
 root_mean_squared_error(ytest, predictions)
 ```
 
+Poisson, Gamma, and Tweedie regression use penalized likelihood objectives and
+support log or identity links. Their target domains follow the selected
+Tweedie power: Gamma and powers above two require strictly positive targets;
+Poisson and powers from one through two accept nonnegative targets. Robust
+regressors provide smoothed quantile and Huber objectives, sampled Theil--Sen
+estimation, and RANSAC consensus fitting. These estimators currently fit dense
+numeric matrices on the CPU. GLMs, quantile, Huber, and RANSAC regression
+accept observation weights; Theil--Sen regression does not.
+
 ### Classification
 
 | Family | Estimators |
 |:--|:--|
 | Linear | `LogisticRegression`, `SparseLogisticRegression`, `SGDClassifier` |
+| Ordered outcomes | `OrdinalRegression` |
 | Probabilistic | `GaussianNaiveBayes`, `MultinomialNaiveBayes`, `LinearDiscriminantAnalysis`, `QuadraticDiscriminantAnalysis` |
 | Neighbors and kernels | `KNeighborsClassifier`, `SupportVectorClassifier` |
 | Trees and ensembles | `DecisionTreeClassifier`, `RandomForestClassifier`, `ExtraTreesClassifier`, `HistGradientBoostingClassifier` |
@@ -51,6 +63,52 @@ confusion_matrix(ytest, labels)
 Classification labels are ordered deterministically during fitting. The same
 order controls probability columns, reports, schemas, and classification
 diagnostics.
+
+`OrdinalRegression` is a proportional-odds model. Consequently, the
+deterministic order of its fitted `classes` is the outcome order used by the
+cumulative link; inspect that field before interpreting its coefficients or
+probability columns.
+
+## Meta-estimators
+
+Meta-estimators wrap or combine ordinary Tilia predictors while preserving the
+same `fit`/`predict` lifecycle:
+
+| Purpose | Estimators |
+|:--|:--|
+| Multiclass reduction | `OneVsRestClassifier`, `OneVsOneClassifier` |
+| Multiple targets | `MultiOutputClassifier`, `MultiOutputRegressor`, `ClassifierChain` |
+| Resampling and aggregation | `BaggingClassifier`, `BaggingRegressor`, `VotingClassifier`, `VotingRegressor` |
+| Learned combination | `StackingClassifier`, `StackingRegressor` |
+| Target and decision adaptation | `TransformedTargetRegressor`, `CalibratedClassifier`, `ThresholdSelectionWrapper` |
+
+```julia
+voter = VotingClassifier(
+    LogisticRegression(lambda=0.1),
+    DecisionTreeClassifier(max_depth=4);
+    voting=:soft,
+)
+fitted_voter = fit(voter, Xtrain, ytrain; context=FitContext(seed=42))
+predict_proba(fitted_voter, Xtest)
+
+robust = TransformedTargetRegressor(
+    RidgeRegression(lambda=0.2);
+    func=log1p,
+    inverse_func=expm1,
+)
+```
+
+Multi-output estimators and classifier chains expect a target matrix with one
+output per column. Stacking and the calibration and threshold wrappers use
+cross-validation to construct out-of-fold predictions; pass a seeded `KFold`
+when shuffled folds are required. Soft voting, calibration, and threshold
+selection require probabilistic base classifiers in practice. Threshold
+selection is binary-only and optimizes `:f1`, `:accuracy`, or
+`:balanced_accuracy` on a fixed grid from zero to one.
+
+All meta-estimators currently declare dense CPU execution. For a constructed
+meta-estimator, `capabilities(model).weights` is true only when every wrapped
+estimator that receives observation weights supports them.
 
 ### Unsupervised learning and transformation
 

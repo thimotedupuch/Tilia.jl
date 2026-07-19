@@ -8,36 +8,37 @@ explicit set of contracts.
 ```julia
 using Tilia
 
-X = column_table((
-    age    = [22, 25, 31, 36, 42, 47, 53, 58],
-    income = [28, 35, 46, 52, 61, 73, 82, 94] .* 1_000.0,
-    plan   = [:basic, :basic, :plus, :basic, :plus, :pro, :plus, :pro],
-))
-y = [:stay, :leave, :stay, :leave, :stay, :stay, :leave, :stay]
-
-model = Chain(
-    ColumnMap(
-        (:age, :income) => Standardize(),
-        :plan => OneHotEncode(passthrough_numeric=false),
-    ),
-    LogisticRegression(lambda=0.1),
-)
+# Rows are homes; columns are floor area, bedrooms, and building age.
+X = [
+     52.0  1  38
+     61.0  2  25
+     70.0  2  18
+     78.0  3  30
+     85.0  3  12
+     93.0  3   8
+    105.0  4  20
+    116.0  4   6
+    128.0  4  15
+    142.0  5   4
+    155.0  5  10
+    170.0  5   2
+]
+price = [162.0, 188.0, 214.0, 226.0, 264.0, 291.0,
+         305.0, 348.0, 367.0, 412.0, 438.0, 486.0] # thousands
 
 Xtrain, Xtest, ytrain, ytest, _, _ =
-    train_test_split(X, y; test_size=0.25, stratify=y, seed=42)
+    train_test_split(X, price; test_size=0.25, seed=42)
 
-fitted = fit(model, Xtrain, ytrain; context=FitContext(seed=42))
+model = Chain(
+    Standardize(),
+    RidgeRegression(lambda=0.2),
+)
+
+fitted = fit(model, Xtrain, ytrain)
 predictions = predict(fitted, Xtest)
-probabilities = predict_proba(fitted, Xtest)
 
-accuracy_score(ytest, predictions)
-confusion_matrix(ytest, predictions)
-cross_validate(model, X, y; cv=KFold(4; shuffle=true, seed=42)).scores
-report(fitted)                     # schema, graph, numerics, timings, warnings
-
-save_model("customer_model.tilia", fitted)
-restored = load_model("customer_model.tilia")
-predict(restored, Xtest) == predictions
+root_mean_squared_error(ytest, predictions)
+report(fitted)
 ```
 
 Observations occupy rows and features occupy columns. Model values such as
@@ -54,7 +55,7 @@ Tilia currently provides:
 |:--|:--|
 | Data | Matrices, Tables.jl inputs, owned `ColumnTable` storage, `Dataset`, semantic schemas, categorical metadata, weights |
 | Preprocessing | Imputation, categorical encoding, standard, min--max and robust scaling, normalization, polynomial features |
-| Models | Linear and sparse models, decomposition, clustering, mixtures, neighbors, probabilistic classifiers, trees, ensembles, kernels, shallow neural models |
+| Models | Linear, generalized-linear, robust, ordinal, multi-output and meta-estimators, plus decomposition, clustering, mixtures, neighbors, trees, kernels, and shallow neural models |
 | Composition | `Chain`, `ColumnMap`, `Select`, `Parallel`, `Concatenate`, semantic graph validation and optimization |
 | Evaluation | Metrics, deterministic splits, cross-validation, parameter tuning, permutation importance, structured diagnostic results |
 | Operations | Numerical policies, deterministic random streams, fit reports, structural persistence, tracing, optional Reactant execution |
@@ -67,32 +68,68 @@ probabilities, or incremental fitting.
 
 ## Why Tilia?
 
-Tilia is being developed for users who want the whole classical-ML workflow to
-remain inspectable inside Julia:
+Tilia is for classical-ML workflows where understanding what was fitted matters
+as much as obtaining a prediction. Models are immutable specifications; learned
+parameters, training schema, and diagnostics live in the value returned by
+`fit`:
 
-1. **Specifications and learned state are different values.** Reusing a model
-   specification cannot silently carry parameters learned by an earlier fit.
-2. **Pipelines are semantic graphs.** Column selection, branch structure,
-   conversions, and predictions remain visible to validation, tracing,
-   optimization, persistence, and future backends.
-3. **Data contracts travel with fitted objects.** Schemas record feature order,
-   logical and physical types, missingness rules, categorical levels, target
-   metadata, and generated-column provenance.
-4. **Numerical behavior is an API concern.** A `FitContext` carries numerical
-   policy, backend choice, deterministic seed streams, compilation cache, and
-   fallback policy; reports record what actually happened.
-5. **Optional systems stay optional.** Reactant execution, differentiation, and
-   Makie visualization do not enlarge the core dependency surface for users
-   who do not need them.
-6. **Reference behavior is testable.** The repository includes conformance,
-   numerical-reference, persistence, graph, allocation, and visualization
-   tests rather than treating estimator output as an opaque implementation
-   detail.
+```julia
+model = RidgeRegression(lambda=0.2)
+fitted = fit(model, Xtrain, ytrain)
 
-Tilia is not presented as a drop-in replacement for a mature ecosystem, and
-its experimental status matters. Its purpose is to explore a coherent,
-Julia-native stack in which model semantics, execution, and diagnostics can be
-developed together.
+model.lambda          # configuration
+fitted.coefficients   # learned state
+report(fitted)        # convergence and execution details
+```
+
+Preprocessing and prediction form one leakage-safe workflow. Tilia represents
+that workflow as a semantic graph, so its structure remains available for
+validation, optimization, tracing, persistence, and optional execution
+backends:
+
+```julia
+workflow = Chain(
+    Standardize(),
+    PCA(n_components=2),
+    RidgeRegression(lambda=0.1),
+)
+
+fitted_workflow = fit(workflow, Xtrain, ytrain)
+predict(fitted_workflow, Xtest)
+```
+
+Support is explicit rather than discovered through a failed fit. Generic code
+can inspect whether a model accepts sparse data, weights, missing values,
+probabilistic prediction, or incremental updates:
+
+```julia
+capabilities(LogisticRegression())
+model_catalog(task=:classification, probabilistic=true)
+```
+
+Randomness and numerical choices are also explicit inputs. The same context can
+be used to reproduce stochastic work without depending on global RNG state:
+
+```julia
+context = FitContext(seed=42)
+clusters = fit(KMeans(n_clusters=4), X; context=context)
+report(clusters)
+```
+
+Finally, fitted graphs can be stored structurally and loaded through the same
+public API:
+
+```julia
+save_model("house-price-model.tilia", fitted)
+restored = load_model("house-price-model.tilia")
+predict(restored, Xtest)
+```
+
+The core package stays Julia-native and dependency-light. Reactant execution,
+automatic differentiation, and Makie visualization are optional integrations.
+Tilia is still experimental, but its schemas, numerical contracts, reference
+fixtures, conformance tests, and reports are designed to make that maturity
+visible rather than implicit.
 
 ## Existing ML software
 

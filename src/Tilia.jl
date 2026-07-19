@@ -27,6 +27,7 @@ include("data/table_adapter.jl")
 include("data/dataset.jl")
 include("kernels/Kernels.jl")
 import .Kernels: log_loss, mean_squared_error, root_mean_squared_error
+import .Kernels: mean_absolute_error, huber_loss, quantile_loss
 include("solvers/Solvers.jl")
 include("graph/node.jl")
 include("graph/graph.jl")
@@ -51,6 +52,9 @@ include("models/linear/sparse_logistic.jl")
 include("models/linear/sgd.jl")
 include("models/linear/mars.jl")
 include("models/linear/partial_least_squares.jl")
+include("models/linear/generalized_linear.jl")
+include("models/linear/robust.jl")
+include("models/linear/ordinal.jl")
 include("models/decomposition/pca.jl")
 include("models/decomposition/nmf.jl")
 include("models/decomposition/random_projection.jl")
@@ -80,6 +84,7 @@ include("metrics/regression.jl")
 include("metrics/classification.jl")
 include("inspection/permutation_importance.jl")
 include("model_selection/split.jl")
+include("models/meta.jl")
 include("model_selection/cross_validation.jl")
 include("persistence/format.jl")
 include("core/api.jl")
@@ -99,7 +104,17 @@ export MeanRegressor, Standardize, Dataset, Schema, ColumnSchema
 export MinMaxScale, RobustScale, Normalize, PolynomialFeatures
 export Impute, OneHotEncode, ColumnTable, CategoricalColumn, column_table
 export LinearRegression, RidgeRegression
-export LogisticRegression
+export LogisticRegression, PoissonRegression, GammaRegression, TweedieRegression
+export QuantileRegression, HuberRegression, TheilSenRegression, RANSACRegression
+export OrdinalRegression
+export OneVsRestClassifier, OneVsOneClassifier
+export MultiOutputClassifier, MultiOutputRegressor
+export ClassifierChain
+export BaggingClassifier, BaggingRegressor
+export VotingClassifier, VotingRegressor
+export StackingClassifier, StackingRegressor
+export TransformedTargetRegressor
+export CalibratedClassifier, ThresholdSelectionWrapper
 export Lasso, ElasticNet
 export SparseLogisticRegression
 export SGDClassifier, SGDRegressor
@@ -129,6 +144,7 @@ export accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 export roc_curve, precision_recall_curve, calibration_curve, area_under_curve
 export permutation_importance
 export log_loss, mean_squared_error, root_mean_squared_error
+export mean_absolute_error, huber_loss, quantile_loss
 export train_test_split, KFold, split, cross_validate
 
 end

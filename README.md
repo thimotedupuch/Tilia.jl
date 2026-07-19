@@ -1,9 +1,10 @@
 # Tilia.jl
 
 Tilia is an experimental Julia-native classical machine-learning stack. The
-current implementation includes the initial supervised, decomposition,
-clustering, neighbor, sparse, tree, ensemble, kernel, and shallow-neural model
-scope on a shared estimator, schema, graph, persistence, and reporting system.
+current implementation includes supervised linear, generalized-linear, robust,
+ordinal, multi-output and meta-estimators alongside decomposition, clustering,
+neighbors, trees, ensembles, kernels, and shallow neural models on a shared
+estimator, schema, graph, persistence, and reporting system.
 
 ```julia
 using Tilia
