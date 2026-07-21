@@ -1,5 +1,9 @@
 # Tilia.jl
 
+
+### https://thimotedupuch.github.io/Tilia.jl/
+
+
 Tilia is an experimental Julia-native classical machine-learning stack. The
 current implementation includes supervised linear, generalized-linear, robust,
 ordinal, multi-output and meta-estimators alongside decomposition, clustering,
