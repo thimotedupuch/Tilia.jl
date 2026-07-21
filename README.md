@@ -1,135 +1,154 @@
 # Tilia.jl
 
+Tilia is a Julia-native classical machine-learning stack with composable
+pipelines, explicit data and numerical contracts, structured diagnostics, and
+optional acceleration.
 
-### https://thimotedupuch.github.io/Tilia.jl/
+[Documentation](https://thimotedupuch.github.io/Tilia.jl/) ·
+[Contributing](CONTRIBUTING.md) ·
+[License](LICENSE)
 
+> [!IMPORTANT]
+> Tilia is experimental. The API and persistence format may evolve before
+> 1.0, and model coverage should not yet be interpreted as production maturity.
 
-Tilia is an experimental Julia-native classical machine-learning stack. The
-current implementation includes supervised linear, generalized-linear, robust,
-ordinal, multi-output and meta-estimators alongside decomposition, clustering,
-neighbors, trees, ensembles, kernels, and shallow neural models on a shared
-estimator, schema, graph, persistence, and reporting system.
+## Quick start
+
+Estimator specifications are immutable. Calling `fit` returns a separate value
+containing learned state, the training schema, and a structured report.
 
 ```julia
 using Tilia
 
-X = [1.0 10.0; 2.0 20.0; 3.0 30.0]
-y = [2.0, 4.0, 9.0]
+# Rows are homes; columns are floor area and building age.
+X = [
+     48.0  35
+     62.0  24
+     74.0  18
+     86.0  12
+    101.0  20
+    118.0   7
+    137.0  10
+    156.0   3
+]
+price = [158.0, 192.0, 225.0, 267.0, 301.0, 356.0, 401.0, 468.0]
 
-model = Chain(Standardize(), MeanRegressor())
-fitted = fit(model, X, y)
-predict(fitted, X)
+Xtrain, Xtest, ytrain, ytest, _, _ =
+    train_test_split(X, price; test_size=0.25, seed=42)
+
+model = Chain(
+    Standardize(),
+    RidgeRegression(lambda=0.2),
+)
+
+fitted = fit(model, Xtrain, ytrain)
+predictions = predict(fitted, Xtest)
+
+root_mean_squared_error(ytest, predictions)
 report(fitted)
 ```
 
-Observations are rows and features are columns. Estimator specifications are
-immutable; fitting returns a separate object containing learned state,
-training schema, and a structured report.
+Observations are rows and features are columns. Preprocessing inside a `Chain`
+is fitted only from training rows, preventing train/test leakage.
 
-## Optional Reactant execution
+## Why Tilia?
 
-Reactant is a weak dependency and is not installed or loaded by the core
-package. In an environment containing Reactant, supported dense preprocessing,
-projection, and linear/logistic inference regions can be compiled explicitly:
+Tilia treats the surrounding ML system as part of the model rather than as
+unrelated utilities:
+
+- **One estimator lifecycle.** Models, transformers, clustering, decomposition,
+  and meta-estimators consistently use `fit`, `predict`, `predict_proba`, or
+  `transform`.
+- **Semantic pipelines.** `Chain`, `ColumnMap`, `Select`, `Parallel`, and
+  `Concatenate` form inspectable computation graphs.
+- **Explicit contracts.** Schemas retain feature meaning and ordering;
+  `capabilities(model)` declares support for sparse data, missing values,
+  weights, probabilities, and incremental fitting.
+- **Reproducible execution.** `FitContext` carries deterministic random streams,
+  numerical policy, backend selection, and compilation caches.
+- **Inspectable results.** Every fit produces a `FitReport` containing the
+  relevant convergence, timing, backend, and execution details.
+- **Structural persistence.** Fitted models and graphs can be saved and loaded
+  without relying on opaque Julia object serialization.
+
+## What is included?
+
+| Area | Highlights |
+|:--|:--|
+| Data and preprocessing | Tables.jl inputs, schemas, imputation, encoding, scaling, normalization, polynomial features |
+| Supervised learning | Linear, sparse, generalized-linear, robust, ordinal, neighbor, kernel, tree, ensemble, and shallow-neural models |
+| Unsupervised learning | PCA, truncated SVD, NMF, FastICA, random projection, clustering, mixtures, and anomaly detection |
+| Meta-estimators | Multiclass reductions, multi-output models, classifier chains, bagging, voting, stacking, calibration, and threshold selection |
+| Evaluation | Metrics, deterministic splitting, cross-validation, tuning, calibration curves, and permutation importance |
+| Operations | Numerical policies, semantic graphs, reports, tracing, optimization, persistence, and optional acceleration |
+
+## Visualization
+
+Plotting lives in the separate `TiliaMakieRecipes` package, keeping Makie out
+of the core dependency graph. These figures are generated from fitted Tilia
+models and semantic diagnostic results:
+
+<p align="center">
+  <img src="TiliaMakieRecipes/demonstrator/output/model_diagnostics/decision_tree.png" width="49%" alt="A fitted Tilia decision tree rendered with TiliaMakieRecipes">
+  <img src="TiliaMakieRecipes/demonstrator/output/dimensionality_reduction/iris_biplot.png" width="49%" alt="A PCA biplot rendered from a fitted Tilia projection">
+</p>
+
+More standalone examples are available in the
+[`TiliaMakieRecipes` demonstrator](TiliaMakieRecipes/demonstrator).
+
+The [model guide](https://thimotedupuch.github.io/Tilia.jl/stable/models.html)
+and `model_catalog()` provide the complete model inventory. Use
+`capabilities(model)` when writing generic workflows instead of assuming that
+all estimators accept the same data or operations.
+
+## Installation
+
+Until Tilia is registered, install it directly from GitHub:
 
 ```julia
-using Tilia, Reactant
-
-context = FitContext(backend=ReactantBackend(device=:cpu))
-accelerated = fit(Chain(Standardize(), LogisticRegression()), X, y;
-                  context=context)
-predict_proba(accelerated, Xnew)
-report(accelerated)
+using Pkg
+Pkg.add(url="https://github.com/thimotedupuch/Tilia.jl")
 ```
 
-Device-resident matrices can flow into inference directly, and probabilities
-or regression values can remain on-device with `output=:device`. Classification
-labels remain host values; request device probabilities for on-device chaining.
-
-The report records phase-specific timing, estimated transfer bytes, device
-placement, bounded-cache behavior, unsupported operations, and fallbacks.
-Standardization sufficient statistics are accelerated for eligible linear
-graphs. Weighted ridge normal-equation statistics are also device-computed;
-the Cholesky solve and remaining fit-time algorithms stay on CPU and are
-reported as such.
-
-Supported logistic heads use a coherent device Newton loop, including weighted
-gradient/Hessian evaluation, Cholesky solves, and Armijo damping.
-`ReactantBackend(fallback=:cpu)` opts into explicit CPU execution for
-unsupported regions; the default is to raise `UnsupportedBackendError`.
-
-Accelerator tests use their own environment:
-
-```sh
-JULIA_NUM_PRECOMPILE_TASKS=1 julia --project=test/accelerator \
-  -e 'using Pkg; Pkg.instantiate(); include("test/accelerator/runtests.jl")'
-```
-
-## Decomposition, clustering, and probabilistic models
-
-The CPU backend includes deterministic PCA and truncated SVD, Lloyd k-means,
-Gaussian mixtures, Gaussian naive Bayes, linear and quadratic discriminant
-analysis, and exact nearest-neighbor estimators. Learned state remains separate
-from immutable specifications and every fit produces a structured report.
+After registration, installation will simply be:
 
 ```julia
-X = [-2.0 -1.0; -1.0 -2.0; 1.0 2.0; 2.0 1.0]
-y = [:negative, :negative, :positive, :positive]
-
-pipeline = Chain(PCA(n_components=1),
-                 KNeighborsClassifier(n_neighbors=1))
-fitted = fit(pipeline, X, y)
-predict(fitted, X)
-predict_proba(fitted, X)
-
-clusters = fit(KMeans(n_clusters=2), X)
-clusters.centers
-report(clusters).details.objective_history
-
-mixture = fit(GaussianMixture(n_components=2), X)
-predict_proba(mixture, X)
+using Pkg
+Pkg.add("Tilia")
 ```
 
-PCA centers inputs while `TruncatedSVD` deliberately does not. Rows are always
-observations. K-means and mixture component numbers are one-based; component
-ordering is deterministic for a fixed `FitContext` RNG but has no semantic
-class meaning.
+Tilia supports Julia 1.10 and later. The core package keeps a small dependency
+surface and does not require Python.
 
-Offline reference fixtures for these models were generated with scikit-learn
-and are stored under `test/reference`; Python is not used by Tilia or its Julia
-test suite.
+## Optional integrations
 
-## Optional differentiation and visualization
+- **Visualization:** [`TiliaMakieRecipes`](TiliaMakieRecipes) supplies Makie
+  recipes for semantic metrics, fitted models, diagnostics, dimensionality
+  reduction, clustering, and explanatory plots.
+- **Acceleration:** loading Reactant activates supported compiled preprocessing,
+  projection, and linear/logistic inference paths through `ReactantBackend`.
+- **Differentiation:** loading DifferentiationInterface enables automatic
+  differentiation for custom scalar objectives.
 
-`DifferentiationInterface` is a weak dependency. Loading it adds automatic
-differentiation for custom scalar objectives; its isolated test environment
-lives in `test/differentiation`.
+These integrations are weak dependencies and do not enlarge the core install
+unless explicitly requested.
 
-Plotting is deliberately outside the core package. The separate
-[`TiliaMakieRecipes`](TiliaMakieRecipes) package provides Makie recipes for
-confusion matrices, ROC results, cross-validation scores, and optimization
-traces.
+## Documentation and development
 
-## Benchmarks and documentation
+The [manual](https://thimotedupuch.github.io/Tilia.jl/) covers complete
+workflows, data schemas, pipelines, model semantics, metrics, persistence,
+acceleration, differentiation, and extension interfaces.
 
-The persistent benchmark environment is `benchmark/`. It uses the local Tilia
-checkout and separates compilation, kernels, training, inference, memory,
-graph optimization, CPU scaling, sparse, and preprocessing measurements:
+Run the core test suite with:
 
 ```sh
-julia --project=benchmark -e 'using Pkg; Pkg.instantiate()'
-julia --project=benchmark benchmark/runbenchmarks.jl
-JULIA_NUM_PRECOMPILE_TASKS=1 julia --project=test/accelerator \
-  benchmark/accelerator/runbenchmarks.jl
+julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
-Workflow-oriented documentation starts at `docs/src/index.md` and covers data,
-graphs, models, metrics, selection, acceleration, differentiation,
-persistence, numerical behavior, extension, and internals.
-
-A small development comparison with scikit-learn is recorded in
-[`benchmark/comparison/REPORT.md`](benchmark/comparison/REPORT.md). It is a
-directional snapshot rather than a comprehensive performance claim.
+The repository also contains universal estimator-conformance tests, allocation
+budgets, persistence round trips, and committed numerical fixtures generated
+with scikit-learn. See [CONTRIBUTING.md](CONTRIBUTING.md) for the optional test
+environments and benchmark commands.
 
 ## License
 
