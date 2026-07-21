@@ -89,8 +89,17 @@ of the core dependency graph. These figures are generated from fitted Tilia
 models and semantic diagnostic results:
 
 <p align="center">
-  <img src="TiliaMakieRecipes/demonstrator/output/model_diagnostics/decision_tree.png" width="49%" alt="A fitted Tilia decision tree rendered with TiliaMakieRecipes">
-  <img src="TiliaMakieRecipes/demonstrator/output/dimensionality_reduction/iris_biplot.png" width="49%" alt="A PCA biplot rendered from a fitted Tilia projection">
+  <img src="TiliaMakieRecipes/demonstrator/output/explanatory/classification_partial_dependence_contour.png" width="49%" alt="Classification partial-dependence contour rendered with TiliaMakieRecipes">
+  <img src="TiliaMakieRecipes/demonstrator/output/dimensionality_reduction/mnist_components.png" width="49%" alt="MNIST principal components learned by Tilia">
+</p>
+
+<p align="center">
+  <img src="TiliaMakieRecipes/demonstrator/output/model_diagnostics/gaussian_mixture_density.png" width="49%" alt="Gaussian-mixture density fitted by Tilia">
+  <img src="TiliaMakieRecipes/demonstrator/output/model_diagnostics/cluster_kmeans.png" width="49%" alt="K-means clusters and decision regions fitted by Tilia">
+</p>
+
+<p align="center">
+  <img src="TiliaMakieRecipes/demonstrator/output/three_dimensional/iris_point_cloud_3d.png" width="72%" alt="Three-dimensional Iris point cloud rendered with TiliaMakieRecipes">
 </p>
 
 More standalone examples are available in the
