@@ -34,3 +34,10 @@ makedocs(
         ],
     ],
 )
+
+
+
+deploydocs(
+  repo="github.com/thimotedupuch/Tilia.jl.git",
+  devbranch="master",
+)

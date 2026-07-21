@@ -1,7 +1,7 @@
 name = "Tilia"
 uuid = "86c3e6f3-4b72-4d3d-a746-6fd3a5ac49ca"
-authors = ["Tilia contributors"]
-version = "0.1.0-DEV"
+authors = ["Thimoté Dupuch"]
+version = "0.1.0"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
