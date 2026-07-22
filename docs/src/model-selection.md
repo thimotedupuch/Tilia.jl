@@ -8,20 +8,20 @@ is not automatically protected from leakage; put learned transforms in a
 ## Train/test splitting
 
 ```julia
-Xtrain, Xtest, ytrain, ytest, train_indices, test_indices =
-    train_test_split(
-        X, y;
-        test_size=0.2,
-        shuffle=true,
-        seed=42,
-        stratify=y,
-    )
+Xtrain, Xtest, ytrain, ytest = train_test_split(
+    X, y;
+    test_size=0.2,
+    shuffle=true,
+    seed=42,
+    stratify=y,
+)
 ```
 
-`test_size` may be an observation count or a fraction. Returned indices are
-sorted, disjoint, and correspond to the returned subsets. Stratification
-requires at least two observations per class and preserves each class in both
-partitions when the requested size permits it.
+`test_size` may be an observation count or a fraction. To also receive the
+sorted, disjoint row indices, pass `return_indices=true`; the result then has
+the form `(Xtrain, Xtest, ytrain, ytest, train_indices, test_indices)`.
+Stratification requires at least two observations per class and preserves each
+class in both partitions when the requested size permits it.
 
 ## K-fold definitions
 

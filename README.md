@@ -33,7 +33,7 @@ X = [
 ]
 price = [158.0, 192.0, 225.0, 267.0, 301.0, 356.0, 401.0, 468.0]
 
-Xtrain, Xtest, ytrain, ytest, _, _ =
+Xtrain, Xtest, ytrain, ytest =
     train_test_split(X, price; test_size=0.25, seed=42)
 
 model = Chain(

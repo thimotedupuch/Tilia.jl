@@ -11,8 +11,14 @@
 
     X = reshape(collect(1.0:24.0), 12, 2)
     y = repeat([:a, :b, :c], inner=4)
-    first_split = train_test_split(X, y; test_size=6, seed=7, stratify=y)
-    second_split = train_test_split(X, y; test_size=6, seed=7, stratify=y)
+    default_split = train_test_split(X, y; test_size=6, seed=7, stratify=y)
+    @test length(default_split) == 4
+    @test default_split == train_test_split(X, y; test_size=6, seed=7, stratify=y)
+
+    first_split = train_test_split(X, y; test_size=6, seed=7, stratify=y,
+                                   return_indices=true)
+    second_split = train_test_split(X, y; test_size=6, seed=7, stratify=y,
+                                    return_indices=true)
     @test first_split == second_split
     Xtrain, Xtest, ytrain, ytest, train_indices, test_indices = first_split
     @test size(Xtrain, 1) == size(Xtest, 1) == 6
@@ -22,7 +28,7 @@
 
     table = column_table((feature=collect(1:12), category=repeat([:a, :b, :c], 4)))
     table_train, table_test, _, _, table_train_indices, table_test_indices =
-        train_test_split(table, y; test_size=3, seed=7)
+        train_test_split(table, y; test_size=3, seed=7, return_indices=true)
     @test table_train isa ColumnTable
     @test table_test isa ColumnTable
     @test size(table_train) == (9, 2)

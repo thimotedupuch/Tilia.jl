@@ -16,7 +16,7 @@ X = Matrix(transpose(wine.features))
 y = vec(wine.targets)
 feature_names = string.(wine.metadata["feature_names"])
 
-X_train, X_test, y_train, y_test, _, _ = train_test_split(
+X_train, X_test, y_train, y_test = train_test_split(
     X, y; test_size=0.30, seed=42, stratify=y,
 )
 

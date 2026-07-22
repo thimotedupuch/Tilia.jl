@@ -73,7 +73,7 @@ inventing a probability interpretation.
 Use a deterministic split before fitting when estimating generalization:
 
 ```julia
-Xtrain, Xtest, ytrain, ytest, train_indices, test_indices = train_test_split(
+Xtrain, Xtest, ytrain, ytest = train_test_split(
     X, y; test_size=0.33, shuffle=true, seed=42, stratify=y,
 )
 
@@ -82,8 +82,8 @@ test_predictions = predict(trained, Xtest)
 accuracy_score(ytest, test_predictions)
 ```
 
-Split helpers return indices, which keeps ownership and row selection
-explicit. Pipelines fit every preprocessing step using only the training rows.
+Pass `return_indices=true` when the original row indices are also needed.
+Pipelines fit every preprocessing step using only the training rows.
 
 ## Cross-validation and tuning
 

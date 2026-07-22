@@ -1,44 +1,54 @@
 # Tilia.jl
 
-Tilia is an experimental, Julia-native classical machine-learning stack. It
-brings estimators, preprocessing, semantic computation graphs, schemas,
-evaluation, persistence, diagnostics, and optional acceleration under one
-explicit set of contracts.
+Tilia is an experimental, Julia-native stack for building inspectable classical
+machine-learning workflows.
+
+- Compose preprocessing and estimators as semantic computation graphs.
+- Train and evaluate models with explicit schemas and numerical contracts.
+- Inspect diagnostics and persist fitted workflows structurally.
+- Opt into acceleration and visualization without weighing down the core.
 
 ```julia
 using Tilia
 
-# Rows are homes; columns are floor area, bedrooms, and building age.
-X = [
-     52.0  1  38
-     61.0  2  25
-     70.0  2  18
-     78.0  3  30
-     85.0  3  12
-     93.0  3   8
-    105.0  4  20
-    116.0  4   6
-    128.0  4  15
-    142.0  5   4
-    155.0  5  10
-    170.0  5   2
-]
-price = [162.0, 188.0, 214.0, 226.0, 264.0, 291.0,
-         305.0, 348.0, 367.0, 412.0, 438.0, 486.0] # thousands
+X = randn(300, 4) # observations × features
+y = 3X[:, 1] .- 2X[:, 2] .+ 0.5X[:, 3] .^ 2
 
-Xtrain, Xtest, ytrain, ytest, _, _ =
-    train_test_split(X, price; test_size=0.25, seed=42)
-
-model = Chain(
-    Standardize(),
-    RidgeRegression(lambda=0.2),
+Xtrain, Xtest, ytrain, ytest = train_test_split(
+    X, y; test_size=0.2, seed=42,
 )
 
-fitted = fit(model, Xtrain, ytrain)
+workflow = Chain(
+    Standardize(),
+    PolynomialFeatures(degree=2),
+    RidgeRegression(lambda=0.1),
+)
+
+fitted = fit(workflow, Xtrain, ytrain)
 predictions = predict(fitted, Xtest)
 
 root_mean_squared_error(ytest, predictions)
 report(fitted)
+```
+
+The same API scales to real datasets and different model families. With the
+optional `MLDatasets` and `DataFrames` packages:
+
+```julia
+using MLDatasets, DataFrames, Tilia
+
+wine = Wine(as_df=false)
+X, y = Matrix(wine.features'), vec(wine.targets)
+
+forest = RandomForestClassifier(n_estimators=100, max_depth=6)
+evaluation = cross_validate(
+    forest, X, y; cv=KFold(5; shuffle=true, seed=42),
+)
+
+evaluation.scores
+fitted_forest = fit(forest, X, y)
+predict_proba(fitted_forest, X[1:5, :])
+fitted_forest.feature_importances
 ```
 
 Observations occupy rows and features occupy columns. Model values such as

@@ -39,11 +39,14 @@ function _test_count(observations, test_size)
 end
 
 """
-Split arrays into deterministic train and test partitions. Supplying `stratify`
-preserves every class in both partitions when each class has at least two rows.
+Split arrays into deterministic train and test partitions. Returns
+`(Xtrain, Xtest, ytrain, ytest)` by default. Set `return_indices=true` to append
+the training and test row indices. Supplying `stratify` preserves every class
+in both partitions when each class has at least two rows.
 """
 function train_test_split(X::Union{AbstractMatrix,ColumnTable}, y::AbstractVector; test_size=0.25,
-                          shuffle::Bool=true, seed::Integer=0, stratify=nothing)
+                          shuffle::Bool=true, seed::Integer=0, stratify=nothing,
+                          return_indices::Bool=false)
     size(X, 1) == length(y) || throw(SchemaMismatchError("features and target observation counts must agree."))
     observations = length(y)
     test_count = _test_count(observations, test_size)
@@ -77,6 +80,7 @@ function train_test_split(X::Union{AbstractMatrix,ColumnTable}, y::AbstractVecto
     end
     test_set = Set(test_indices)
     train_indices = [index for index in 1:observations if index ∉ test_set]
-    (select_rows(X, train_indices), select_rows(X, test_indices), y[train_indices], y[test_indices],
-     train_indices, test_indices)
+    partitions = (select_rows(X, train_indices), select_rows(X, test_indices),
+                  y[train_indices], y[test_indices])
+    return_indices ? (partitions..., train_indices, test_indices) : partitions
 end
